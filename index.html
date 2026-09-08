@@ -1,0 +1,974 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Mia's Crochet Patterns</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧶</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#faf5ee;
+    --bg-alt:#f1e6d8;
+    --card:#ffffff;
+    --ink:#3d2f28;
+    --ink-soft:#7a6a5f;
+    --border:#e6d8c6;
+    --accent:#d97a5f;
+    --accent-ink:#ffffff;
+    --sage:#7c9a78;
+    --sage-ink:#ffffff;
+    --danger:#c85c5c;
+    --shadow:0 2px 8px rgba(90,60,40,.08), 0 1px 2px rgba(90,60,40,.06);
+    --radius:16px;
+    --cell-blank-bg: repeating-conic-gradient(#f3ede2 0% 25%, #ece3d4 0% 50%) 50% / 10px 10px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#221c17;
+      --bg-alt:#2a221b;
+      --card:#2e261f;
+      --ink:#f1e7db;
+      --ink-soft:#b8a99a;
+      --border:#4a3d31;
+      --accent:#e08a6d;
+      --accent-ink:#241813;
+      --sage:#8fb08a;
+      --sage-ink:#132013;
+      --danger:#e18080;
+      --shadow:0 2px 10px rgba(0,0,0,.35);
+      --cell-blank-bg: repeating-conic-gradient(#3a3128 0% 25%, #342c24 0% 50%) 50% / 10px 10px;
+    }
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'Nunito',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    min-height:100vh;
+  }
+  button{font-family:inherit;}
+  h1,h2,h3{font-weight:800;margin:0;}
+  .app-header{
+    padding:18px 20px;
+    background:var(--bg-alt);
+    border-bottom:1px solid var(--border);
+    display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  }
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand .logo{font-size:32px;}
+  .brand h1{font-size:22px;}
+  .brand p{margin:0;color:var(--ink-soft);font-size:13px;}
+  main{max-width:1200px;margin:0 auto;padding:20px;}
+  .btn{
+    display:inline-flex;align-items:center;gap:6px;
+    padding:9px 16px;border-radius:999px;border:1px solid var(--border);
+    background:var(--card);color:var(--ink);font-weight:700;font-size:14px;
+    cursor:pointer;transition:transform .08s ease, box-shadow .15s ease;
+    white-space:nowrap;
+  }
+  .btn:hover{box-shadow:var(--shadow);transform:translateY(-1px);}
+  .btn:active{transform:translateY(0);}
+  .btn-primary{background:var(--accent);color:var(--accent-ink);border-color:transparent;}
+  .btn-sage{background:var(--sage);color:var(--sage-ink);border-color:transparent;}
+  .btn-danger{background:transparent;color:var(--danger);border-color:var(--danger);}
+  .btn-ghost{background:transparent;}
+  .btn-sm{padding:5px 11px;font-size:12.5px;}
+  .btn-icon{padding:8px;border-radius:10px;line-height:1;}
+  .btn[disabled]{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none;}
+
+  /* Home */
+  .section-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;}
+  .project-grid{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;
+  }
+  .project-card{
+    background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+    padding:18px;cursor:pointer;box-shadow:var(--shadow);transition:transform .1s ease;
+    display:flex;flex-direction:column;gap:8px;min-height:120px;position:relative;
+  }
+  .project-card:hover{transform:translateY(-2px);}
+  .project-card h3{font-size:17px;}
+  .project-card .meta{color:var(--ink-soft);font-size:12.5px;}
+  .project-card .swatches{display:flex;gap:4px;margin-top:auto;}
+  .swatch-dot{width:14px;height:14px;border-radius:50%;border:1px solid rgba(0,0,0,.15);}
+  .project-card .card-actions{position:absolute;top:10px;right:10px;opacity:0;transition:opacity .15s;}
+  .project-card:hover .card-actions{opacity:1;}
+  .new-card{
+    border:2px dashed var(--border);border-radius:var(--radius);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+    color:var(--ink-soft);cursor:pointer;min-height:120px;font-weight:700;background:transparent;
+  }
+  .new-card:hover{color:var(--accent);border-color:var(--accent);}
+  .new-card .plus{font-size:28px;}
+  .empty-state{text-align:center;padding:50px 20px;color:var(--ink-soft);}
+  .empty-state .big{font-size:44px;margin-bottom:8px;}
+
+  /* Project view */
+  .crumb{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+  .project-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:space-between;margin-bottom:16px;}
+  .project-title-row h2{font-size:24px;}
+  .title-actions{display:flex;gap:8px;}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:2px solid var(--border);margin-bottom:18px;padding-bottom:0;}
+  .tab{
+    padding:9px 16px;border-radius:10px 10px 0 0;cursor:pointer;font-weight:700;font-size:14px;
+    color:var(--ink-soft);border:1px solid transparent;border-bottom:none;background:transparent;
+  }
+  .tab.active{color:var(--accent);background:var(--card);border-color:var(--border);position:relative;top:2px;}
+  .tab-add{color:var(--ink-soft);font-size:18px;padding:9px 14px;}
+  .tab-add:hover{color:var(--accent);}
+
+  /* Pattern view */
+  .pattern-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px;}
+  .pattern-header h3{font-size:20px;}
+  .pattern-header .actions{display:flex;gap:8px;flex-wrap:wrap;}
+  .pattern-layout{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;}
+  .sidebar{
+    width:270px;flex-shrink:0;display:flex;flex-direction:column;gap:14px;
+  }
+  .panel{
+    background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+    padding:14px;box-shadow:var(--shadow);
+  }
+  .panel h4{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:10px;}
+  .tool-row{display:flex;gap:6px;flex-wrap:wrap;}
+  .tool-btn{
+    flex:1;padding:9px 6px;border-radius:10px;border:1px solid var(--border);background:var(--bg-alt);
+    cursor:pointer;font-size:13px;font-weight:700;text-align:center;color:var(--ink);
+  }
+  .tool-btn.active{background:var(--accent);color:var(--accent-ink);border-color:transparent;}
+  .palette-grid{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
+  .palette-swatch{
+    position:relative;width:34px;height:34px;border-radius:9px;border:2px solid var(--border);cursor:pointer;
+  }
+  .palette-swatch.selected{border-color:var(--ink);box-shadow:0 0 0 2px var(--accent);}
+  .palette-swatch .rm{
+    position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:50%;background:var(--danger);
+    color:#fff;font-size:10px;line-height:16px;text-align:center;cursor:pointer;display:none;
+  }
+  .palette-swatch:hover .rm{display:block;}
+  .add-color-row{display:flex;gap:6px;align-items:center;}
+  .add-color-row input[type=text]{
+    flex:1;min-width:0;padding:7px 9px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--ink);font-size:13px;
+  }
+  .add-color-row input[type=color]{width:34px;height:34px;padding:0;border:1px solid var(--border);border-radius:8px;background:none;cursor:pointer;}
+  .active-color-preview{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .active-color-preview .swatch-big{width:40px;height:40px;border-radius:10px;border:2px solid var(--border);}
+  .field{margin-bottom:10px;}
+  .field label{display:block;font-size:12.5px;color:var(--ink-soft);margin-bottom:4px;font-weight:700;}
+  .field select, .field input[type=number]{
+    width:100%;padding:7px 9px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--ink);font-size:13px;
+  }
+  .field-row{display:flex;gap:8px;}
+  .field-row .field{flex:1;}
+  .range-row{display:flex;align-items:center;gap:8px;}
+  .range-row input[type=range]{flex:1;}
+  .range-row .val{font-size:12px;color:var(--ink-soft);width:38px;text-align:right;}
+
+  .grid-scroll{overflow:auto;max-width:100%;padding:6px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);}
+  .grid-wrapper{display:grid;gap:1px;background:var(--border);width:max-content;user-select:none;touch-action:none;}
+  .corner{background:var(--card);}
+  .lbl{
+    background:var(--bg-alt);display:flex;align-items:center;justify-content:center;
+    font-size:11px;font-weight:700;color:var(--ink-soft);
+  }
+  .lbl-hi{color:var(--accent-ink);background:var(--accent);font-weight:800;}
+  .lbl.row-current{outline:2px solid var(--sage);outline-offset:-2px;}
+  .cell{background:#fff;cursor:pointer;}
+  .cell.cell-blank{background:var(--cell-blank-bg);}
+  .pattern-mode-view .cell{cursor:default;}
+  .cell.row-dim{opacity:.35;}
+  .lbl.row-dim{opacity:.35;}
+
+  .guide-bar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 14px;box-shadow:var(--shadow);}
+  .guide-bar .row-indicator{font-weight:800;font-size:15px;min-width:110px;}
+  .guide-breakdown{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-left:auto;}
+  .breakdown-chip{display:flex;align-items:center;gap:5px;background:var(--bg-alt);border-radius:999px;padding:3px 9px 3px 3px;font-size:12px;font-weight:700;}
+  .breakdown-chip .dot{width:14px;height:14px;border-radius:50%;border:1px solid rgba(0,0,0,.15);}
+
+  .hint{color:var(--ink-soft);font-size:12.5px;line-height:1.5;}
+
+  /* Modal */
+  .modal-backdrop{position:fixed;inset:0;background:rgba(30,20,12,.4);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;}
+  .modal{background:var(--card);border-radius:var(--radius);padding:22px;width:100%;max-width:380px;box-shadow:0 12px 40px rgba(0,0,0,.25);}
+  .modal h3{margin-bottom:14px;}
+  .modal .field{margin-bottom:12px;}
+  .modal input[type=text]{width:100%;padding:9px 11px;border-radius:9px;border:1px solid var(--border);background:var(--bg);color:var(--ink);font-size:14px;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;}
+
+  footer{text-align:center;color:var(--ink-soft);font-size:12px;padding:30px 20px 40px;}
+  a{color:var(--accent);}
+
+  @media (max-width:720px){
+    .pattern-layout{flex-direction:column;}
+    .sidebar{width:100%;}
+    .guide-breakdown{margin-left:0;width:100%;}
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="modal-root"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- helpers ---------- */
+  function uid(){ return 'id_' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+  function escapeHtml(s){
+    return String(s==null?'':s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  function clamp(n,min,max){ return Math.max(min, Math.min(max, n)); }
+  function fmtDate(iso){
+    try{
+      var d = new Date(iso);
+      return d.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});
+    }catch(e){ return ''; }
+  }
+
+  /* ---------- data layer ---------- */
+  var DB_KEY = 'miasCrochetApp.v1';
+
+  function defaultPalette(){
+    return [
+      {id:uid(), hex:'#d97a5f', name:'Terracotta'},
+      {id:uid(), hex:'#f1e6d8', name:'Cream'},
+      {id:uid(), hex:'#7c9a78', name:'Sage'},
+      {id:uid(), hex:'#3d2f28', name:'Espresso'}
+    ];
+  }
+
+  function loadDB(){
+    try{
+      var raw = localStorage.getItem(DB_KEY);
+      if(!raw) return {projects:[]};
+      var parsed = JSON.parse(raw);
+      if(!parsed || !Array.isArray(parsed.projects)) return {projects:[]};
+      return parsed;
+    }catch(e){
+      console.error('Failed to load data', e);
+      return {projects:[]};
+    }
+  }
+  function saveDB(){
+    try{
+      localStorage.setItem(DB_KEY, JSON.stringify(db));
+    }catch(e){
+      alert('Could not save — your browser storage might be full.');
+      console.error(e);
+    }
+  }
+
+  var db = loadDB();
+
+  /* ---------- app state (not persisted) ---------- */
+  var state = {
+    view:'home',            // 'home' | 'project'
+    projectId:null,
+    patternId:null,
+    patternMode:'view',     // 'view' | 'edit'
+    activeColor:'#d97a5f',
+    activeTool:'paint',     // 'paint' | 'bucket' | 'erase'
+    guideActive:false,
+    guidePos:0,
+    isPainting:false,
+    paintingButton:null
+  };
+
+  function getProject(id){ return db.projects.find(function(p){ return p.id===id; }); }
+  function getPattern(project, id){ return project ? project.patterns.find(function(p){ return p.id===id; }) : null; }
+
+  /* ---------- pattern helpers ---------- */
+  function blankCells(rows, cols){
+    var cells = [];
+    for(var i=0;i<rows;i++){
+      var row = [];
+      for(var j=0;j<cols;j++) row.push(null);
+      cells.push(row);
+    }
+    return cells;
+  }
+  function resizeCells(oldCells, oldRows, oldCols, newRows, newCols){
+    var out = blankCells(newRows, newCols);
+    var r = Math.min(oldRows, newRows), c = Math.min(oldCols, newCols);
+    for(var i=0;i<r;i++) for(var j=0;j<c;j++) out[i][j] = oldCells[i][j];
+    return out;
+  }
+  function rowDisplay(pattern, i){ return pattern.numbering.flipV ? (pattern.rows - i) : (i+1); }
+  function colDisplay(pattern, j){ return pattern.numbering.flipH ? (pattern.cols - j) : (j+1); }
+  function isHighlighted(display, side, oddSide){ return (display % 2 === 1) === (side === oddSide); }
+  function getRowOrder(pattern){
+    var arr = [];
+    for(var i=0;i<pattern.rows;i++) arr.push(i);
+    return pattern.numbering.flipV ? arr.slice().reverse() : arr;
+  }
+
+  function touch(project){ project.updatedAt = new Date().toISOString(); }
+
+  /* ---------- flood fill ---------- */
+  function bucketFill(pattern, startRow, startCol, color){
+    var target = pattern.cells[startRow][startCol];
+    if(target === color) return;
+    var stack = [[startRow,startCol]];
+    var seen = new Set();
+    seen.add(startRow+','+startCol);
+    while(stack.length){
+      var cur = stack.pop();
+      var r=cur[0], c=cur[1];
+      pattern.cells[r][c] = color;
+      var neighbors = [[r-1,c],[r+1,c],[r,c-1],[r,c+1]];
+      for(var k=0;k<neighbors.length;k++){
+        var nr=neighbors[k][0], nc=neighbors[k][1];
+        if(nr<0||nc<0||nr>=pattern.rows||nc>=pattern.cols) continue;
+        var key = nr+','+nc;
+        if(seen.has(key)) continue;
+        if(pattern.cells[nr][nc] === target){
+          seen.add(key);
+          stack.push([nr,nc]);
+        }
+      }
+    }
+  }
+
+  /* ================= RENDER ================= */
+  var appEl = document.getElementById('app');
+
+  function render(){
+    if(state.view === 'home') appEl.innerHTML = renderHome();
+    else appEl.innerHTML = renderProjectView();
+  }
+
+  function renderHome(){
+    var html = '';
+    html += '<div class="app-header"><div class="brand"><div class="logo">🧶</div><div><h1>Mia\'s Crochet Patterns</h1><p>Design graphgan charts &amp; follow along stitch by stitch</p></div></div>';
+    html += '<div style="display:flex;gap:8px;">';
+    html += '<button class="btn btn-icon" data-action="backup" title="Download a backup of all your data">⬇ Backup</button>';
+    html += '<button class="btn btn-icon" data-action="restore" title="Restore from a backup file">⬆ Restore</button>';
+    html += '</div></div>';
+    html += '<main>';
+
+    if(db.projects.length === 0){
+      html += '<div class="empty-state"><div class="big">🧵</div><h2>No projects yet</h2><p>Start your first crochet project to design a pattern chart.</p>';
+      html += '<div style="margin-top:16px;"><button class="btn btn-primary" data-action="new-project">+ New Project</button></div></div>';
+    } else {
+      html += '<div class="section-title"><h2>Your Projects</h2></div>';
+      html += '<div class="project-grid">';
+      db.projects.slice().sort(function(a,b){ return new Date(b.updatedAt)-new Date(a.updatedAt); }).forEach(function(p){
+        var swatches = p.palette.slice(0,6).map(function(c){ return '<div class="swatch-dot" style="background:'+escapeHtml(c.hex)+'" title="'+escapeHtml(c.name)+'"></div>'; }).join('');
+        html += '<div class="project-card" data-action="open-project" data-id="'+p.id+'">';
+        html += '<div class="card-actions"><button class="btn btn-icon btn-danger btn-sm" data-action="delete-project" data-id="'+p.id+'" title="Delete project">🗑</button></div>';
+        html += '<h3>'+escapeHtml(p.name)+'</h3>';
+        html += '<div class="meta">'+p.patterns.length+' pattern'+(p.patterns.length===1?'':'s')+' · updated '+fmtDate(p.updatedAt)+'</div>';
+        html += '<div class="swatches">'+swatches+'</div>';
+        html += '</div>';
+      });
+      html += '<div class="new-card" data-action="new-project"><div class="plus">+</div><div>New Project</div></div>';
+      html += '</div>';
+    }
+    html += '</main>';
+    html += '<footer>Your patterns are stored locally in this browser. Use Backup regularly so you never lose your work.</footer>';
+    return html;
+  }
+
+  function renderProjectView(){
+    var project = getProject(state.projectId);
+    if(!project){ state.view='home'; return renderHome(); }
+    var html = '';
+    html += '<div class="app-header"><div class="brand"><div class="logo">🧶</div><div><h1>Mia\'s Crochet Patterns</h1><p>Design graphgan charts &amp; follow along stitch by stitch</p></div></div>';
+    html += '<button class="btn" data-action="go-home">← All Projects</button></div>';
+    html += '<main>';
+
+    html += '<div class="project-title-row"><h2>'+escapeHtml(project.name)+'</h2>';
+    html += '<div class="title-actions">';
+    html += '<button class="btn btn-sm" data-action="rename-project" data-id="'+project.id+'">✎ Rename</button>';
+    html += '<button class="btn btn-sm btn-danger" data-action="delete-project" data-id="'+project.id+'">🗑 Delete Project</button>';
+    html += '</div></div>';
+
+    html += '<div class="tabs">';
+    project.patterns.forEach(function(pt){
+      var active = pt.id === state.patternId;
+      html += '<div class="tab'+(active?' active':'')+'" data-action="open-pattern" data-id="'+pt.id+'">'+escapeHtml(pt.name)+'</div>';
+    });
+    html += '<div class="tab tab-add" data-action="new-pattern" title="Add pattern">+</div>';
+    html += '</div>';
+
+    var pattern = getPattern(project, state.patternId);
+    if(!pattern && project.patterns.length){
+      pattern = project.patterns[0];
+      state.patternId = pattern.id;
+    }
+    if(!pattern){
+      html += '<div class="empty-state"><div class="big">📐</div><h2>No patterns yet</h2><p>Add a pattern to start charting stitches for this project.</p>';
+      html += '<div style="margin-top:16px;"><button class="btn btn-primary" data-action="new-pattern">+ New Pattern</button></div></div>';
+    } else {
+      html += renderPattern(project, pattern);
+    }
+
+    html += '</main>';
+    html += '<footer>Your patterns are stored locally in this browser. Use Backup regularly so you never lose your work.</footer>';
+    return html;
+  }
+
+  function renderPattern(project, pattern){
+    var editing = state.patternMode === 'edit';
+    var html = '<div class="pattern-header">';
+    html += '<h3>'+escapeHtml(pattern.name)+' <span class="hint">('+pattern.rows+' × '+pattern.cols+')</span></h3>';
+    html += '<div class="actions">';
+    html += '<button class="btn btn-sm" data-action="rename-pattern" data-id="'+pattern.id+'">✎ Rename</button>';
+    html += '<button class="btn btn-sm" data-action="duplicate-pattern" data-id="'+pattern.id+'">⧉ Duplicate</button>';
+    html += '<button class="btn btn-sm btn-danger" data-action="delete-pattern" data-id="'+pattern.id+'">🗑 Delete</button>';
+    if(editing){
+      html += '<button class="btn btn-sm btn-sage" data-action="toggle-mode">✓ Done Editing</button>';
+    } else {
+      html += '<button class="btn btn-sm btn-primary" data-action="toggle-mode">✎ Edit Pattern</button>';
+    }
+    html += '</div></div>';
+
+    if(!editing){
+      html += renderGuideBar(project, pattern);
+    }
+
+    html += '<div class="pattern-layout pattern-mode-'+(editing?'edit':'view')+'">';
+    if(editing) html += renderSidebar(project, pattern);
+    html += '<div class="grid-scroll">'+renderGrid(project, pattern, editing)+'</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function renderGuideBar(project, pattern){
+    var html = '<div class="guide-bar">';
+    if(!state.guideActive){
+      html += '<button class="btn btn-sage btn-sm" data-action="guide-toggle">🧶 Start Stitch Guide</button>';
+      html += '<span class="hint">Highlight and step through rows as you crochet.</span>';
+    } else {
+      var order = getRowOrder(pattern);
+      var pos = clamp(state.guidePos, 0, order.length-1);
+      state.guidePos = pos;
+      var rowIdx = order[pos];
+      html += '<button class="btn btn-icon btn-sm" data-action="guide-prev" '+(pos<=0?'disabled':'')+'>‹ Prev</button>';
+      html += '<div class="row-indicator">Row '+(pos+1)+' of '+pattern.rows+'</div>';
+      html += '<button class="btn btn-icon btn-sm" data-action="guide-next" '+(pos>=order.length-1?'disabled':'')+'>Next ›</button>';
+      html += '<button class="btn btn-sm btn-ghost" data-action="guide-toggle">✕ Stop</button>';
+
+      var counts = {};
+      for(var j=0;j<pattern.cols;j++){
+        var hex = pattern.cells[rowIdx][j];
+        if(hex) counts[hex] = (counts[hex]||0)+1;
+      }
+      var entries = Object.keys(counts).map(function(hex){ return {hex:hex, n:counts[hex]}; }).sort(function(a,b){ return b.n-a.n; });
+      if(entries.length){
+        html += '<div class="guide-breakdown">';
+        entries.forEach(function(e){
+          var pc = project.palette.find(function(c){ return c.hex===e.hex; });
+          var label = pc ? pc.name : e.hex;
+          html += '<div class="breakdown-chip"><span class="dot" style="background:'+e.hex+'"></span>'+escapeHtml(label)+' × '+e.n+'</div>';
+        });
+        html += '</div>';
+      }
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function renderSidebar(project, pattern){
+    var html = '<div class="sidebar">';
+
+    // Tools
+    html += '<div class="panel"><h4>Tools</h4>';
+    html += '<div class="active-color-preview"><div class="swatch-big" style="background:'+state.activeColor+'"></div>';
+    html += '<input type="color" data-action="set-active-color" value="'+state.activeColor+'" title="Pick a custom color">';
+    html += '<span class="hint">Active color</span></div>';
+    html += '<div class="tool-row">';
+    ['paint','bucket','erase'].forEach(function(t){
+      var labels = {paint:'🖌️ Paint', bucket:'🪣 Fill', erase:'🧽 Erase'};
+      html += '<button class="tool-btn'+(state.activeTool===t?' active':'')+'" data-action="set-tool" data-tool="'+t+'">'+labels[t]+'</button>';
+    });
+    html += '</div>';
+    html += '<div style="margin-top:10px;"><button class="btn btn-sm btn-danger" data-action="clear-grid" style="width:100%;">Clear Whole Grid</button></div>';
+    html += '</div>';
+
+    // Palette
+    html += '<div class="panel"><h4>Project Palette</h4><div class="palette-grid">';
+    project.palette.forEach(function(c){
+      var sel = state.activeColor.toLowerCase() === c.hex.toLowerCase();
+      html += '<div class="palette-swatch'+(sel?' selected':'')+'" style="background:'+c.hex+'" data-action="select-palette-color" data-hex="'+c.hex+'" title="'+escapeHtml(c.name)+'">';
+      html += '<div class="rm" data-action="remove-palette-color" data-id="'+c.id+'" title="Remove from palette">×</div></div>';
+    });
+    html += '</div>';
+    html += '<div class="add-color-row">';
+    html += '<input type="color" id="new-color-hex" value="#d97a5f">';
+    html += '<input type="text" id="new-color-name" placeholder="Color name">';
+    html += '<button class="btn btn-sm btn-primary" data-action="add-palette-color">Add</button>';
+    html += '</div></div>';
+
+    // Grid settings
+    html += '<div class="panel"><h4>Grid Settings</h4>';
+    html += '<div class="field-row"><div class="field"><label>Rows</label><input type="number" id="resize-rows" min="1" max="100" value="'+pattern.rows+'"></div>';
+    html += '<div class="field"><label>Columns</label><input type="number" id="resize-cols" min="1" max="100" value="'+pattern.cols+'"></div></div>';
+    html += '<button class="btn btn-sm" data-action="resize-grid" style="width:100%;margin-bottom:12px;">Resize Grid</button>';
+
+    html += '<div class="field"><label>Row numbers</label><select data-action="set-numbering" data-field="flipV">';
+    html += '<option value="false"'+(!pattern.numbering.flipV?' selected':'')+'>Top → Bottom (1…N)</option>';
+    html += '<option value="true"'+(pattern.numbering.flipV?' selected':'')+'>Bottom → Top (N…1)</option>';
+    html += '</select></div>';
+
+    html += '<div class="field"><label>Column numbers</label><select data-action="set-numbering" data-field="flipH">';
+    html += '<option value="false"'+(!pattern.numbering.flipH?' selected':'')+'>Left → Right (1…N)</option>';
+    html += '<option value="true"'+(pattern.numbering.flipH?' selected':'')+'>Right → Left (N…1)</option>';
+    html += '</select></div>';
+
+    html += '<div class="field"><label>Highlight odd rows on</label><select data-action="set-numbering" data-field="oddV">';
+    html += '<option value="left"'+(pattern.numbering.oddV==='left'?' selected':'')+'>Left side</option>';
+    html += '<option value="right"'+(pattern.numbering.oddV==='right'?' selected':'')+'>Right side</option>';
+    html += '</select></div>';
+
+    html += '<div class="field"><label>Highlight odd columns on</label><select data-action="set-numbering" data-field="oddH">';
+    html += '<option value="top"'+(pattern.numbering.oddH==='top'?' selected':'')+'>Top side</option>';
+    html += '<option value="bottom"'+(pattern.numbering.oddH==='bottom'?' selected':'')+'>Bottom side</option>';
+    html += '</select></div>';
+
+    html += '<div class="field"><label>Cell size</label><div class="range-row"><input type="range" min="10" max="44" value="'+pattern.cellSize+'" data-action="set-cellsize"><span class="val">'+pattern.cellSize+'px</span></div></div>';
+    html += '<div class="field"><label>Cell width (stitch shape)</label><div class="range-row"><input type="range" min="50" max="200" value="'+Math.round(pattern.aspect*100)+'" data-action="set-aspect"><span class="val">'+Math.round(pattern.aspect*100)+'%</span></div></div>';
+    html += '</div>';
+
+    html += '</div>';
+    return html;
+  }
+
+  function renderGrid(project, pattern, editable){
+    var cellW = Math.round(pattern.cellSize * pattern.aspect);
+    var cellH = pattern.cellSize;
+    var lblSize = clamp(pattern.cellSize, 20, 30);
+
+    var guide = (!editable && state.guideActive);
+    var order = guide ? getRowOrder(pattern) : null;
+    var currentRowIdx = guide ? order[clamp(state.guidePos,0,order.length-1)] : -1;
+
+    var colsTemplate = lblSize+'px repeat('+pattern.cols+', '+cellW+'px) '+lblSize+'px';
+    var rowsTemplate = lblSize+'px repeat('+pattern.rows+', '+cellH+'px) '+lblSize+'px';
+
+    var html = '<div class="grid-wrapper" id="grid-wrapper" data-rows="'+pattern.rows+'" data-cols="'+pattern.cols+'" style="grid-template-columns:'+colsTemplate+';grid-template-rows:'+rowsTemplate+';">';
+
+    // top row: corner + column labels + corner
+    html += '<div class="corner"></div>';
+    for(var j=0;j<pattern.cols;j++){
+      var cd = colDisplay(pattern,j);
+      var hi = isHighlighted(cd,'top',pattern.numbering.oddH);
+      html += '<div class="lbl'+(hi?' lbl-hi':'')+'">'+cd+'</div>';
+    }
+    html += '<div class="corner"></div>';
+
+    // middle rows
+    for(var i=0;i<pattern.rows;i++){
+      var rd = rowDisplay(pattern,i);
+      var hiL = isHighlighted(rd,'left',pattern.numbering.oddV);
+      var hiR = isHighlighted(rd,'right',pattern.numbering.oddV);
+      var rowGuideClass = '';
+      if(guide) rowGuideClass = (i===currentRowIdx) ? ' row-current' : ' row-dim';
+
+      html += '<div class="lbl'+(hiL?' lbl-hi':'')+rowGuideClass+'">'+rd+'</div>';
+      for(var jj=0; jj<pattern.cols; jj++){
+        var hex = pattern.cells[i][jj];
+        var blank = !hex;
+        html += '<div class="cell'+(blank?' cell-blank':'')+rowGuideClass+'" data-row="'+i+'" data-col="'+jj+'"'+(hex?' style="background:'+hex+'"':'')+'></div>';
+      }
+      html += '<div class="lbl'+(hiR?' lbl-hi':'')+rowGuideClass+'">'+rd+'</div>';
+    }
+
+    // bottom row
+    html += '<div class="corner"></div>';
+    for(var j2=0;j2<pattern.cols;j2++){
+      var cd2 = colDisplay(pattern,j2);
+      var hi2 = isHighlighted(cd2,'bottom',pattern.numbering.oddH);
+      html += '<div class="lbl'+(hi2?' lbl-hi':'')+'">'+cd2+'</div>';
+    }
+    html += '<div class="corner"></div>';
+
+    html += '</div>';
+    return html;
+  }
+
+  /* ================= MODALS ================= */
+  var modalRoot = document.getElementById('modal-root');
+  function closeModal(){ modalRoot.innerHTML = ''; }
+  function openModal(html){ modalRoot.innerHTML = '<div class="modal-backdrop" data-action="modal-backdrop">'+html+'</div>'; }
+
+  function openNewProjectModal(){
+    var html = '<div class="modal">';
+    html += '<h3>New Project</h3>';
+    html += '<div class="field"><label>Project name</label><input type="text" id="modal-project-name" placeholder="e.g. Mia\'s Blanket" autofocus></div>';
+    html += '<div class="modal-actions"><button class="btn" data-action="modal-cancel">Cancel</button><button class="btn btn-primary" data-action="modal-create-project">Create</button></div>';
+    html += '</div>';
+    openModal(html);
+    setTimeout(function(){ var el=document.getElementById('modal-project-name'); if(el) el.focus(); },0);
+  }
+
+  function openNewPatternModal(){
+    var html = '<div class="modal">';
+    html += '<h3>New Pattern</h3>';
+    html += '<div class="field"><label>Pattern name</label><input type="text" id="modal-pattern-name" placeholder="e.g. Front Panel" autofocus></div>';
+    html += '<div class="field-row"><div class="field"><label>Rows</label><input type="number" id="modal-pattern-rows" min="1" max="100" value="20"></div>';
+    html += '<div class="field"><label>Columns</label><input type="number" id="modal-pattern-cols" min="1" max="100" value="20"></div></div>';
+    html += '<div class="modal-actions"><button class="btn" data-action="modal-cancel">Cancel</button><button class="btn btn-primary" data-action="modal-create-pattern">Create</button></div>';
+    html += '</div>';
+    openModal(html);
+    setTimeout(function(){ var el=document.getElementById('modal-pattern-name'); if(el) el.focus(); },0);
+  }
+
+  /* ================= ACTIONS ================= */
+  function newProject(name){
+    var p = {
+      id: uid(),
+      name: name || 'Untitled Project',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      palette: defaultPalette(),
+      patterns: []
+    };
+    db.projects.push(p);
+    saveDB();
+    state.view='project'; state.projectId=p.id; state.patternId=null;
+    render();
+  }
+
+  function newPattern(project, name, rows, cols){
+    rows = clamp(parseInt(rows,10)||20,1,100);
+    cols = clamp(parseInt(cols,10)||20,1,100);
+    var pt = {
+      id: uid(),
+      name: name || 'Untitled Pattern',
+      rows: rows, cols: cols,
+      cellSize: clamp(Math.round(420/Math.max(rows,cols)), 12, 30),
+      aspect: 1,
+      cells: blankCells(rows, cols),
+      numbering: {flipV:false, flipH:false, oddV:'left', oddH:'top'},
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    project.patterns.push(pt);
+    touch(project);
+    saveDB();
+    state.patternId = pt.id;
+    state.patternMode = 'edit';
+    render();
+  }
+
+  function paintCell(project, pattern, row, col){
+    if(row<0||col<0||row>=pattern.rows||col>=pattern.cols) return;
+    var color = state.activeTool === 'erase' ? null : state.activeColor;
+    if(state.activeTool === 'bucket'){
+      bucketFill(pattern, row, col, color);
+      touch(project); saveDB(); render();
+      return;
+    }
+    if(pattern.cells[row][col] === color) return;
+    pattern.cells[row][col] = color;
+    // direct DOM update for smooth dragging, full save/re-render happens on pointerup
+    var wrapper = document.getElementById('grid-wrapper');
+    if(wrapper){
+      var cellEl = wrapper.querySelector('.cell[data-row="'+row+'"][data-col="'+col+'"]');
+      if(cellEl){
+        if(color){ cellEl.style.background = color; cellEl.classList.remove('cell-blank'); }
+        else { cellEl.style.background=''; cellEl.classList.add('cell-blank'); }
+      }
+    }
+  }
+
+  /* ================= EVENT WIRING ================= */
+  document.addEventListener('click', function(e){
+    var t = e.target.closest('[data-action]');
+    if(!t) return;
+    var action = t.getAttribute('data-action');
+
+    switch(action){
+      case 'new-project': openNewProjectModal(); break;
+      case 'modal-cancel': closeModal(); break;
+      case 'modal-backdrop': if(e.target===t) closeModal(); break;
+      case 'modal-create-project': {
+        var nameEl = document.getElementById('modal-project-name');
+        var name = nameEl ? nameEl.value.trim() : '';
+        closeModal();
+        newProject(name);
+        break;
+      }
+      case 'modal-create-pattern': {
+        var project = getProject(state.projectId);
+        if(!project) break;
+        var n = document.getElementById('modal-pattern-name').value.trim();
+        var r = document.getElementById('modal-pattern-rows').value;
+        var c = document.getElementById('modal-pattern-cols').value;
+        closeModal();
+        newPattern(project, n, r, c);
+        break;
+      }
+      case 'open-project': {
+        state.view='project'; state.projectId=t.getAttribute('data-id'); state.patternId=null; state.patternMode='view'; state.guideActive=false;
+        render();
+        break;
+      }
+      case 'go-home': state.view='home'; render(); break;
+      case 'delete-project': {
+        e.stopPropagation();
+        var id = t.getAttribute('data-id');
+        var p = getProject(id);
+        if(p && confirm('Delete project "'+p.name+'" and all its patterns? This cannot be undone.')){
+          db.projects = db.projects.filter(function(x){ return x.id!==id; });
+          saveDB();
+          if(state.projectId===id){ state.view='home'; state.projectId=null; }
+          render();
+        }
+        break;
+      }
+      case 'rename-project': {
+        var proj = getProject(t.getAttribute('data-id'));
+        if(!proj) break;
+        var nn = prompt('Rename project', proj.name);
+        if(nn && nn.trim()){ proj.name = nn.trim(); touch(proj); saveDB(); render(); }
+        break;
+      }
+      case 'new-pattern': openNewPatternModal(); break;
+      case 'open-pattern': {
+        state.patternId = t.getAttribute('data-id');
+        state.patternMode = 'view';
+        state.guideActive = false;
+        render();
+        break;
+      }
+      case 'rename-pattern': {
+        var pr = getProject(state.projectId);
+        var pt2 = getPattern(pr, t.getAttribute('data-id'));
+        if(!pt2) break;
+        var pn = prompt('Rename pattern', pt2.name);
+        if(pn && pn.trim()){ pt2.name = pn.trim(); touch(pr); saveDB(); render(); }
+        break;
+      }
+      case 'duplicate-pattern': {
+        var pr2 = getProject(state.projectId);
+        var pt3 = getPattern(pr2, t.getAttribute('data-id'));
+        if(!pt3) break;
+        var copy = JSON.parse(JSON.stringify(pt3));
+        copy.id = uid();
+        copy.name = pt3.name + ' (copy)';
+        copy.createdAt = new Date().toISOString();
+        copy.updatedAt = new Date().toISOString();
+        pr2.patterns.push(copy);
+        touch(pr2); saveDB();
+        state.patternId = copy.id;
+        render();
+        break;
+      }
+      case 'delete-pattern': {
+        var pr3 = getProject(state.projectId);
+        var pt4 = getPattern(pr3, t.getAttribute('data-id'));
+        if(!pt4) break;
+        if(confirm('Delete pattern "'+pt4.name+'"? This cannot be undone.')){
+          pr3.patterns = pr3.patterns.filter(function(x){ return x.id!==pt4.id; });
+          touch(pr3); saveDB();
+          if(state.patternId===pt4.id) state.patternId = pr3.patterns.length ? pr3.patterns[0].id : null;
+          render();
+        }
+        break;
+      }
+      case 'toggle-mode': {
+        state.patternMode = state.patternMode==='edit' ? 'view' : 'edit';
+        state.guideActive = false;
+        render();
+        break;
+      }
+      case 'set-tool': state.activeTool = t.getAttribute('data-tool'); render(); break;
+      case 'select-palette-color': {
+        state.activeColor = t.getAttribute('data-hex');
+        render();
+        break;
+      }
+      case 'remove-palette-color': {
+        e.stopPropagation();
+        var prj = getProject(state.projectId);
+        var cid = t.getAttribute('data-id');
+        if(confirm('Remove this color from the palette? Squares already painted with it will keep their color.')){
+          prj.palette = prj.palette.filter(function(c){ return c.id!==cid; });
+          touch(prj); saveDB(); render();
+        }
+        break;
+      }
+      case 'add-palette-color': {
+        var prj2 = getProject(state.projectId);
+        var hexEl = document.getElementById('new-color-hex');
+        var nameEl2 = document.getElementById('new-color-name');
+        var hex = hexEl.value;
+        var cname = nameEl2.value.trim() || hex;
+        prj2.palette.push({id:uid(), hex:hex, name:cname});
+        touch(prj2); saveDB();
+        state.activeColor = hex;
+        render();
+        break;
+      }
+      case 'clear-grid': {
+        var prj3 = getProject(state.projectId);
+        var pat = getPattern(prj3, state.patternId);
+        if(!pat) break;
+        if(confirm('Clear the entire grid? This cannot be undone.')){
+          pat.cells = blankCells(pat.rows, pat.cols);
+          touch(prj3); saveDB(); render();
+        }
+        break;
+      }
+      case 'resize-grid': {
+        var prj4 = getProject(state.projectId);
+        var pat2 = getPattern(prj4, state.patternId);
+        if(!pat2) break;
+        var nr = clamp(parseInt(document.getElementById('resize-rows').value,10)||pat2.rows,1,100);
+        var nc = clamp(parseInt(document.getElementById('resize-cols').value,10)||pat2.cols,1,100);
+        if(nr<pat2.rows || nc<pat2.cols){
+          if(!confirm('Shrinking the grid will permanently remove stitches outside the new size. Continue?')) break;
+        }
+        pat2.cells = resizeCells(pat2.cells, pat2.rows, pat2.cols, nr, nc);
+        pat2.rows = nr; pat2.cols = nc;
+        pat2.cellSize = clamp(Math.round(420/Math.max(nr,nc)), 12, 30);
+        touch(prj4); saveDB(); render();
+        break;
+      }
+      case 'guide-toggle': state.guideActive = !state.guideActive; state.guidePos = 0; render(); break;
+      case 'guide-prev': state.guidePos = Math.max(0, state.guidePos-1); render(); break;
+      case 'guide-next': {
+        var pp = getPattern(getProject(state.projectId), state.patternId);
+        state.guidePos = Math.min(pp.rows-1, state.guidePos+1);
+        render();
+        break;
+      }
+      case 'backup': doBackup(); break;
+      case 'restore': doRestoreClick(); break;
+      default: break;
+    }
+  });
+
+  document.addEventListener('input', function(e){
+    var t = e.target.closest('[data-action]');
+    if(!t) return;
+    var action = t.getAttribute('data-action');
+    if(action==='set-active-color'){ state.activeColor = t.value; render(); }
+    else if(action==='set-numbering'){
+      var prj = getProject(state.projectId);
+      var pat = getPattern(prj, state.patternId);
+      if(!pat) return;
+      var field = t.getAttribute('data-field');
+      var val = t.value;
+      pat.numbering[field] = (val==='true') ? true : (val==='false') ? false : val;
+      touch(prj); saveDB(); render();
+    } else if(action==='set-cellsize'){
+      var prj2 = getProject(state.projectId);
+      var pat2 = getPattern(prj2, state.patternId);
+      if(!pat2) return;
+      pat2.cellSize = parseInt(t.value,10);
+      touch(prj2); saveDB(); render();
+    } else if(action==='set-aspect'){
+      var prj3 = getProject(state.projectId);
+      var pat3 = getPattern(prj3, state.patternId);
+      if(!pat3) return;
+      pat3.aspect = parseInt(t.value,10)/100;
+      touch(prj3); saveDB(); render();
+    }
+  });
+
+  /* painting via pointer events (mouse + touch) */
+  document.addEventListener('pointerdown', function(e){
+    var cell = e.target.closest('.cell');
+    if(!cell) return;
+    if(state.patternMode !== 'edit') return;
+    var project = getProject(state.projectId);
+    var pattern = getPattern(project, state.patternId);
+    if(!pattern) return;
+    e.preventDefault();
+    state.isPainting = true;
+    paintCell(project, pattern, parseInt(cell.getAttribute('data-row'),10), parseInt(cell.getAttribute('data-col'),10));
+  });
+  document.addEventListener('pointermove', function(e){
+    if(!state.isPainting) return;
+    var el = document.elementFromPoint(e.clientX, e.clientY);
+    var cell = el && el.closest ? el.closest('.cell') : null;
+    if(!cell) return;
+    var project = getProject(state.projectId);
+    var pattern = getPattern(project, state.patternId);
+    if(!pattern) return;
+    paintCell(project, pattern, parseInt(cell.getAttribute('data-row'),10), parseInt(cell.getAttribute('data-col'),10));
+  });
+  function endPaint(){
+    if(state.isPainting){
+      state.isPainting = false;
+      var project = getProject(state.projectId);
+      if(project){ touch(project); saveDB(); }
+    }
+  }
+  document.addEventListener('pointerup', endPaint);
+  document.addEventListener('pointercancel', endPaint);
+  document.addEventListener('pointerleave', function(e){ if(e.target===document.documentElement) endPaint(); });
+
+  /* keyboard nav for guide mode */
+  document.addEventListener('keydown', function(e){
+    if(!state.guideActive) return;
+    var tag = document.activeElement && document.activeElement.tagName;
+    if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT') return;
+    var project = getProject(state.projectId);
+    var pattern = getPattern(project, state.patternId);
+    if(!pattern) return;
+    if(e.key==='ArrowRight'||e.key==='ArrowDown'){
+      state.guidePos = Math.min(pattern.rows-1, state.guidePos+1);
+      render(); e.preventDefault();
+    } else if(e.key==='ArrowLeft'||e.key==='ArrowUp'){
+      state.guidePos = Math.max(0, state.guidePos-1);
+      render(); e.preventDefault();
+    }
+  });
+
+  /* ================= BACKUP / RESTORE ================= */
+  function doBackup(){
+    var blob = new Blob([JSON.stringify(db,null,2)], {type:'application/json'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    var stamp = new Date().toISOString().slice(0,10);
+    a.href = url;
+    a.download = 'mias-crochet-patterns-backup-'+stamp+'.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+  function doRestoreClick(){
+    var input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json';
+    input.onchange = function(){
+      var file = input.files[0];
+      if(!file) return;
+      var reader = new FileReader();
+      reader.onload = function(){
+        try{
+          var parsed = JSON.parse(reader.result);
+          if(!parsed || !Array.isArray(parsed.projects)) throw new Error('Invalid file');
+          if(confirm('Restoring will replace ALL current data in this browser with the contents of the backup file. Continue?')){
+            db = parsed;
+            saveDB();
+            state.view='home'; state.projectId=null; state.patternId=null;
+            render();
+          }
+        }catch(err){
+          alert('Could not read that file — it doesn\'t look like a valid backup.');
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  }
+
+  /* ================= INIT ================= */
+  render();
+})();
+</script>
+</body>
+</html>
