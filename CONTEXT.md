@@ -81,13 +81,27 @@ single-`localStorage`-blob approach:
 ### Home screen
 - Grid of project cards (name, pattern count, last-updated date — no color
   preview, since projects are moving toward a yarn-based model rather than
-  flat color swatches).
+  flat color swatches). No "Your Projects" heading above the grid anymore —
+  redundant with the page itself.
 - Create / delete projects. Delete requires confirmation.
-- Refresh button (re-pulls the latest data from Firestore) and Log out.
+- Header buttons: 🧶 Yarn Stash, ⚙ Settings, ⟳ Refresh (re-pulls the latest
+  data from Firestore), ⎋ Log out.
 - In-app header just says "Crochet Projects" (no logo icon) so it and the
   "← All Projects" back button fit on one line on a phone. No footer
   disclaimer text anymore (removed — was leftover copy from the
   `localStorage`-only era and no longer accurate).
+
+### Settings
+New screen (`state.view='settings'`, ⚙ button on the home header) with
+tabs (`SETTINGS_TABS`):
+- **General**: a Light / Dark / System theme picker. Saved to
+  `localStorage` (device-local, not synced — a per-viewer UI preference,
+  not app data). "System" (the default) follows the OS/browser preference
+  via `prefers-color-scheme`, same as before this existed; picking Light or
+  Dark sets `data-theme` on `<html>` which now overrides that in the CSS.
+- **Yarn Presets**: the brand/material/size/hook-size dropdown-option
+  management, moved here from the Yarn Stash screen (chip list per
+  category, add/remove, "Reset to defaults").
 
 ### Yarn Stash / Project Yarn / Pattern Yarn
 Three-tier system for curating which colors are offered when picking a
@@ -96,10 +110,12 @@ picker/organization layer, not a grid-data change.
 - **Yarn Stash**: the global, per-account catalog of every yarn the user
   owns — name + color are required, brand/material/size/recommended hook
   size are optional. Managed from its own screen (🧶 **Yarn Stash** button
-  on the home header): a card grid of yarns (add/edit/delete) plus a
-  **Preset Options** section below it for editing the four dropdown option
-  lists those optional fields draw from (each also has an inline "add a
-  custom option" while adding/editing a yarn).
+  on the home header): a compact card grid (swatch, name, details if any —
+  the details line is omitted entirely rather than showing a placeholder
+  when a yarn has none set) sorted alphabetically by name. Click a card
+  anywhere to edit it (no separate Edit button — that's the only reason to
+  be on this screen); a small trash icon in the corner deletes it. The
+  dropdown preset-list management moved to Settings → Yarn Presets (below).
 - **Project Yarn**: a per-project *selection* from the Stash — picked when
   the project is created (alongside its name) and manageable afterward via
   a "🧶 Project Yarn" button in the project header. Unchecking a yarn there
@@ -107,22 +123,31 @@ picker/organization layer, not a grid-data change.
 - **Pattern Yarn**: a per-pattern *selection* from the Stash — picked when
   the pattern is created (alongside rows/cols, defaulting to the project's
   full yarn list) and manageable afterward via "Manage Pattern Yarn" in the
-  toolbar's active-yarn dropdown (which now only lists the pattern's
-  current yarn, not the whole Stash). Checking a Stash yarn that isn't yet
-  part of the project auto-adds it to Project Yarn too — a deliberate
-  simplification of "pick from Project Yarn / pull from Stash / add
-  brand-new" into one list with an auto-expand side effect.
-- All three "add a new yarn" entry points (Stash screen, Project Yarn
-  modal, Pattern Yarn modal, and both creation modals) let you type a name
-  + pick a color inline; the Stash screen's Add/Edit form additionally
-  offers the four optional preset dropdowns.
+  toolbar's active-yarn dropdown (which only lists the pattern's current
+  yarn, not the whole Stash). Checking a Stash yarn that isn't yet part of
+  the project auto-adds it to Project Yarn too — a deliberate simplification
+  of "pick from Project Yarn / pull from Stash / add brand-new" into one
+  list with an auto-expand side effect.
+- **Adding a new yarn from inside a picker**: every yarn checklist (Project
+  Yarn, Pattern Yarn, and both the New Project/New Pattern creation modals)
+  has a "+ Add New Yarn" button at the bottom instead of an inline
+  name+color-only quick-add — it opens the same full Add Yarn form the
+  Stash screen uses (all optional fields included), then returns you to
+  the checklist you came from with the new yarn checked and everything
+  else you'd already filled in or checked still intact
+  (`state.yarnAddReturn`, `reopenYarnReturnModal()`).
 - **Migration**: projects/patterns created before this system (which had a
   flat `project.palette` instead) are upgraded automatically the first time
   they're loaded — each old palette entry becomes its own new Stash entry,
   and the project/its patterns get `yarnIds` pointing at them. No prompt,
-  nothing lost. (Known edge case, not engineered around: if a client goes
-  offline mid-migration and reloads before the write syncs, it could create
-  duplicate Stash entries — low-probability for a single-user app.)
+  nothing lost. The four original seed-palette colors specifically
+  (Terracotta/Cream/Sage/Espresso) get illustrative material/size/hook
+  details on migration since they were always just placeholder examples,
+  never real yarn — a user's own custom colors stay detail-free rather than
+  have data fabricated for them. (Known edge case, not engineered around:
+  if a client goes offline mid-migration and reloads before the write
+  syncs, it could create duplicate Stash entries — low-probability for a
+  single-user app.)
 
 ### Projects
 - Rename / delete project.
@@ -137,9 +162,14 @@ picker/organization layer, not a grid-data change.
 - Configurable grid size (1–100 rows × 1–100 cols), resizable via Pattern
   Settings (shrinking prompts a confirmation since it discards out-of-bounds
   cells).
-- Cell zoom (toolbar +/− buttons, 12–44px) and a Cell Height:Width Ratio
+- Cell zoom (toolbar +/− buttons, pinch-to-zoom on touch, mouse-wheel/
+  trackpad over the grid on desktop, 12–44px) and a Cell Height:Width Ratio
   preset dropdown (Taller/Tall/Square/Wide/Wider) to approximate real stitch
-  proportions, since crochet stitches aren't square.
+  proportions, since crochet stitches aren't square. Every zoom method
+  keeps whatever point you're zoomed in on (cursor position, pinch
+  midpoint, or the viewport center for the +/− buttons) visually fixed in
+  place (`zoomPatternAroundPoint()`) instead of always anchoring to the
+  grid's top-left corner.
 - Row/column numbering: direction can be flipped (top→bottom vs
   bottom→top, left→right vs right→left), and which side highlights
   odd-numbered rows/columns is configurable (matches how graphgan patterns
@@ -292,6 +322,24 @@ ones as they come up. Nothing here is committed to until we discuss it.
       add yarn → create-pattern → pick or add yarn → paint flow; unchecking
       a yarn from Project Yarn correctly clearing it from any pattern that
       had it; a Preset Options "add"/"remove" surviving a refresh.
+- [x] Yarn Stash follow-up pass: smaller click-to-edit cards (no separate
+      Edit button), dropped the "No extra details yet" placeholder,
+      illustrative details on the migrated seed-palette examples, "+ Add
+      New Yarn" opening the full form from inside any picker (instead of a
+      name+color-only inline quick-add), new Settings screen (General theme
+      picker + Yarn Presets management moved there from the Stash screen),
+      zoom now anchors to cursor/pinch-point/viewport-center instead of the
+      grid's top-left, "Your Projects" heading removed.
+- [ ] Investigate: user reported the New Project/New Pattern creation
+      modals' yarn checklist not showing color swatches, while the Project
+      Yarn/Pattern Yarn management modals' checklists do — both render
+      through the exact same `yarnChecklistHtml()` function, so Claude
+      could not find a code-level difference (similar to the earlier
+      "Clear Grid" wording false-alarm, which turned out to be a stale
+      cached copy of the site). Please recheck after a hard refresh; if it
+      still reproduces, note exactly which modal and what you see.
+- [ ] Yarn Stash currently always sorts alphabetically by name — a manual
+      reorder option was requested for later, not yet scoped.
 - [ ] Broader "discard unsaved changes?" sweep beyond Pattern Settings
       (raised alongside the original Yarn Stash notes — not yet scoped).
 - [ ] (add more here as we plan upcoming work)
@@ -308,6 +356,59 @@ ones as they come up. Nothing here is committed to until we discuss it.
 - [ ] Commit with a clear message.
 
 ## Changelog
+
+### 2026-09-12 (Yarn Stash follow-up: cards, add-yarn flow, Settings screen, zoom anchoring)
+- **Yarn Stash cards redesigned**: smaller card grid (`.yarn-card-grid`/
+  `.yarn-card`), no separate Edit button — clicking anywhere on a card opens
+  it for editing (the delete icon still stops propagation so it doesn't
+  also trigger edit). Dropped the "No extra details yet" placeholder text;
+  the details line just doesn't render when a yarn has none set.
+- **Migration gives illustrative details to the seed-palette examples
+  only**: `SEED_PALETTE_EXAMPLE_DETAILS` maps the four original hardcoded
+  colors (Terracotta/Cream/Sage/Espresso) to plausible material/size/hook
+  values when they're migrated into Stash entries, since they were always
+  placeholder examples rather than real yarn. Any of a user's own custom
+  palette colors still migrate with no fabricated details.
+- **"+ Add New Yarn" replaces the inline quick-add**: every yarn checklist
+  (Project Yarn, Pattern Yarn, New Project, New Pattern) previously had a
+  bare name+color mini-form for adding a new yarn on the spot, with no way
+  to set brand/material/size/hook. It's now a button that opens the same
+  full Add Yarn form the Stash screen uses, then returns to the checklist
+  you came from with the new yarn checked and anything else you'd already
+  entered (name, rows/cols, other checked boxes) preserved
+  (`state.yarnAddReturn`, `reopenYarnReturnModal()` — a lightweight
+  single-level "modal return" mechanism, since the app only ever shows one
+  modal at a time). `state.yarnAddReturn` is cleared on any modal
+  cancel/backdrop-click so a later, unrelated yarn save can't accidentally
+  trigger a stale return. Removed the now-dead `quickAddYarnRowHtml()` and
+  `quick-add-yarn-to-list` action.
+- **New Settings screen** (`state.view='settings'`, ⚙ button on the home
+  header) with General and Yarn Presets tabs. General holds a Light/Dark/
+  System theme picker, saved to `localStorage` (device-local — a per-viewer
+  preference, not synced app data) and applied via a `data-theme` attribute
+  on `<html>` that the CSS now checks before falling back to
+  `prefers-color-scheme`. Yarn Presets is the preset-list management moved
+  here from the Yarn Stash screen.
+- **Zoom now anchors to a point, not the top-left corner**: factored out
+  `zoomPatternAroundPoint(project, pattern, newSize, anchorX, anchorY)`,
+  which keeps the content under that viewport point visually fixed by
+  adjusting scroll offset after the resize (`scale = newSize/oldSize`,
+  reproject the old scroll+anchor through it). Wheel-zoom anchors to the
+  cursor; pinch-zoom anchors to the pinch midpoint (recomputed every
+  `pointermove`, not just once at gesture start, so panning while pinching
+  keeps working); the toolbar +/− buttons anchor to the viewport center.
+  Root cause of the old top-left-only behavior: zoom only ever changed
+  `cellSize` and re-rendered, and `render()`'s scroll-preserving logic just
+  restores the same numeric `scrollLeft`/`scrollTop`, which — with the
+  content now a different size — points at a different, shifted spot.
+- **Removed the "Your Projects" heading** above the home screen's project
+  grid — redundant with the page itself.
+- Not verified live in a browser this session. One thing flagged as a
+  possible false alarm rather than fixed: the user reported New Project/
+  New Pattern's yarn checklist not showing color swatches (unlike the
+  Project/Pattern Yarn management checklists) — both go through the same
+  `yarnChecklistHtml()`, so no code-level difference was found; noted in To
+  Do to recheck after a hard refresh.
 
 ### 2026-09-12 (default preset cleanup)
 - **Brand presets emptied** (`defaultYarnPresets().brand = []`) — the

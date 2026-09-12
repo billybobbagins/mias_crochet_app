@@ -30,7 +30,7 @@
     --cell-blank-bg: repeating-conic-gradient(#ffffff 0% 25%, #ececec 0% 50%) 50% / 10px 10px;
   }
   @media (prefers-color-scheme: dark){
-    :root{
+    :root:not([data-theme="light"]){
       --bg:#221c17;
       --bg-alt:#2a221b;
       --card:#2e261f;
@@ -49,6 +49,25 @@
       --grid-label-hi-ink:#f1e7db;
       --cell-blank-bg: repeating-conic-gradient(#262626 0% 25%, #2e2e2e 0% 50%) 50% / 10px 10px;
     }
+  }
+  :root[data-theme="dark"]{
+    --bg:#221c17;
+    --bg-alt:#2a221b;
+    --card:#2e261f;
+    --ink:#f1e7db;
+    --ink-soft:#b8a99a;
+    --border:#4a3d31;
+    --accent:#e08a6d;
+    --accent-ink:#241813;
+    --sage:#8fb08a;
+    --sage-ink:#132013;
+    --danger:#e18080;
+    --shadow:0 2px 10px rgba(0,0,0,.35);
+    --grid-line:#454545;
+    --grid-label-bg:#2b2b2b;
+    --grid-label-hi-bg:#3a3a3a;
+    --grid-label-hi-ink:#f1e7db;
+    --cell-blank-bg: repeating-conic-gradient(#262626 0% 25%, #2e2e2e 0% 50%) 50% / 10px 10px;
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
@@ -101,6 +120,17 @@
   .project-card .meta{color:var(--ink-soft);font-size:12.5px;}
   .project-card .card-actions{position:absolute;top:10px;right:10px;opacity:0;transition:opacity .15s;}
   .project-card:hover .card-actions{opacity:1;}
+  .yarn-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;}
+  .yarn-card{
+    background:var(--card);border:1px solid var(--border);border-radius:12px;
+    padding:10px 12px;cursor:pointer;box-shadow:var(--shadow);transition:transform .1s ease;
+    display:flex;flex-direction:column;gap:4px;position:relative;
+  }
+  .yarn-card:hover{transform:translateY(-2px);}
+  .yarn-card h3{font-size:13.5px;}
+  .yarn-card .meta{color:var(--ink-soft);font-size:11px;}
+  .yarn-card .card-actions{position:absolute;top:6px;right:6px;opacity:0;transition:opacity .15s;}
+  .yarn-card:hover .card-actions{opacity:1;}
   .new-card{
     border:2px dashed var(--border);border-radius:var(--radius);
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
@@ -251,6 +281,24 @@
 <script>
 (function(){
   "use strict";
+
+  /* ---------- theme (device-local UI preference, not synced) ---------- */
+  var THEME_KEY = 'miasCrochetApp.theme';
+  function applyTheme(theme){
+    if(theme==='light' || theme==='dark'){
+      document.documentElement.setAttribute('data-theme', theme);
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+  }
+  function getTheme(){
+    try{ return localStorage.getItem(THEME_KEY) || 'system'; }catch(e){ return 'system'; }
+  }
+  function setTheme(theme){
+    try{ localStorage.setItem(THEME_KEY, theme); }catch(e){}
+    applyTheme(theme);
+  }
+  applyTheme(getTheme());
 
   /* ---------- firebase ---------- */
   var firebaseConfig = {
@@ -467,12 +515,27 @@
     });
   }
 
+  // The original seed palette (see the removed defaultPalette()) was just
+  // example colors, not real yarn — give those specific recognizable
+  // entries illustrative details when migrated, since they're not real
+  // data anyway. A user's own custom palette colors stay detail-free
+  // rather than have fabricated attributes guessed for them.
+  var SEED_PALETTE_EXAMPLE_DETAILS = {
+    '#d97a5f': {material:'Acrylic', size:'4 - Medium (Worsted)', hookSize:'5.0mm (H-8)'},
+    '#f1e6d8': {material:'Cotton', size:'4 - Medium (Worsted)', hookSize:'5.0mm (H-8)'},
+    '#7c9a78': {material:'Acrylic', size:'4 - Medium (Worsted)', hookSize:'5.0mm (H-8)'},
+    '#3d2f28': {material:'Wool', size:'4 - Medium (Worsted)', hookSize:'5.0mm (H-8)'}
+  };
   function migrateProjectYarn(project){
     if(!project.yarnIds){
       var ids = (project.palette||[]).map(function(c){
+        var example = SEED_PALETTE_EXAMPLE_DETAILS[(c.hex||'').toLowerCase()];
         var y = {
           id: uid(), name: c.name, hex: c.hex,
-          brand: null, material: null, size: null, hookSize: null,
+          brand: null,
+          material: example ? example.material : null,
+          size: example ? example.size : null,
+          hookSize: example ? example.hookSize : null,
           createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
         };
         db.yarnStash.push(y);
@@ -561,7 +624,9 @@
     redoStack:[],
     strokeSnapshot:null,
     touchPoints:{},         // pointerId -> {x,y}, tracks active touches for pinch-zoom
-    pinch:null              // {startDist, startCellSize} while a 2-finger pinch is in progress
+    pinch:null,             // {startDist, startCellSize} while a 2-finger pinch is in progress
+    yarnAddReturn:null,     // {kind, checkedIds, name, rows, cols} — where to return after adding a yarn from inside a picker
+    settingsTab:'general'   // 'general' | 'yarnPresets'
   };
 
   function snapshotPattern(pattern){
@@ -650,6 +715,7 @@
     var scrollTop = scrollEl ? scrollEl.scrollTop : null;
     if(state.view === 'home') appEl.innerHTML = renderHome();
     else if(state.view === 'yarnstash') appEl.innerHTML = renderYarnStashView();
+    else if(state.view === 'settings') appEl.innerHTML = renderSettingsView();
     else appEl.innerHTML = renderProjectView();
     if(scrollLeft!==null){
       var newScrollEl = document.querySelector('.grid-scroll');
@@ -663,11 +729,41 @@
     if(el) el.scrollIntoView({block:'center', inline:'center'});
   }
 
+  // Zooms a pattern's cell size while keeping the content under (anchorX,
+  // anchorY) — viewport coordinates, e.g. a mouse cursor or a pinch
+  // midpoint — visually fixed in place, instead of always anchoring to the
+  // scroll container's top-left corner. Defaults to the viewport's own
+  // center when no anchor point is given (button-triggered zoom).
+  function zoomPatternAroundPoint(project, pattern, newSize, anchorX, anchorY, skipPersist){
+    var oldSize = pattern.cellSize;
+    if(newSize === oldSize) return;
+    var scrollEl = document.querySelector('.grid-scroll');
+    var rect = scrollEl ? scrollEl.getBoundingClientRect() : null;
+    var ax = anchorX, ay = anchorY;
+    if(rect && (ax==null || ay==null)){ ax = rect.left + rect.width/2; ay = rect.top + rect.height/2; }
+    var oldScrollLeft = scrollEl ? scrollEl.scrollLeft : 0;
+    var oldScrollTop = scrollEl ? scrollEl.scrollTop : 0;
+    pattern.cellSize = newSize;
+    if(!skipPersist){ touch(project); persist(project, pattern); }
+    render();
+    if(scrollEl && rect){
+      var scale = newSize/oldSize;
+      var newScrollEl = document.querySelector('.grid-scroll');
+      if(newScrollEl){
+        var contentX = oldScrollLeft + (ax - rect.left);
+        var contentY = oldScrollTop + (ay - rect.top);
+        newScrollEl.scrollLeft = contentX*scale - (ax - rect.left);
+        newScrollEl.scrollTop = contentY*scale - (ay - rect.top);
+      }
+    }
+  }
+
   function renderHome(){
     var html = '';
     html += '<div class="app-header"><div class="brand"><h1>Crochet Projects</h1></div>';
     html += '<div style="display:flex;gap:8px;">';
     html += '<button class="btn btn-icon" data-action="open-yarnstash" title="Manage your yarn catalog">🧶 Yarn Stash</button>';
+    html += '<button class="btn btn-icon" data-action="open-settings" title="App settings">⚙ Settings</button>';
     html += '<button class="btn btn-icon" data-action="refresh" title="Pull the latest data from the database">⟳ Refresh</button>';
     html += '<button class="btn btn-icon" data-action="logout" title="Log out">⎋ Log out</button>';
     html += '</div></div>';
@@ -677,7 +773,6 @@
       html += '<div class="empty-state"><div class="big">🧵</div><h2>No projects yet</h2><p>Start your first crochet project to design a pattern chart.</p>';
       html += '<div style="margin-top:16px;"><button class="btn btn-primary" data-action="new-project">+ New Project</button></div></div>';
     } else {
-      html += '<div class="section-title"><h2>Your Projects</h2></div>';
       html += '<div class="project-grid">';
       db.projects.slice().sort(function(a,b){ return new Date(b.updatedAt)-new Date(a.updatedAt); }).forEach(function(p){
         html += '<div class="project-card" data-action="open-project" data-id="'+p.id+'">';
@@ -711,20 +806,61 @@
     if(!db.yarnStash.length){
       html += '<div class="empty-state"><div class="big">🧶</div><h2>No yarn yet</h2><p>Add the yarn you have on hand so you can pick it for projects and patterns.</p></div>';
     } else {
-      html += '<div class="project-grid">';
+      html += '<div class="yarn-card-grid">';
       db.yarnStash.slice().sort(function(a,b){ return a.name.localeCompare(b.name); }).forEach(function(y){
         var meta = yarnMetaLine(y);
-        html += '<div class="project-card" style="cursor:default;">';
+        html += '<div class="yarn-card" data-action="edit-yarn" data-id="'+y.id+'" title="Click to edit">';
         html += '<div class="card-actions"><button class="icon-btn icon-btn-danger" data-action="delete-yarn" data-id="'+y.id+'" title="Delete yarn">'+ICONS.trash+'</button></div>';
-        html += '<div style="display:flex;align-items:center;gap:8px;"><span class="palette-swatch" style="background:'+y.hex+';cursor:default;"></span><h3 style="font-size:15px;">'+escapeHtml(y.name)+'</h3></div>';
-        html += '<div class="meta">'+(meta ? escapeHtml(meta) : 'No extra details yet')+'</div>';
-        html += '<button class="btn btn-sm" data-action="edit-yarn" data-id="'+y.id+'" style="margin-top:auto;align-self:flex-start;">'+ICONS.pencil+' Edit</button>';
+        html += '<div style="display:flex;align-items:center;gap:8px;"><span class="palette-swatch" style="background:'+y.hex+';cursor:default;width:22px;height:22px;border-radius:6px;"></span><h3>'+escapeHtml(y.name)+'</h3></div>';
+        if(meta) html += '<div class="meta">'+escapeHtml(meta)+'</div>';
         html += '</div>';
       });
       html += '</div>';
     }
 
-    html += '<div class="section-title" style="margin-top:32px;"><h2>Preset Options</h2><button class="btn btn-sm" data-action="reset-yarn-presets">Reset to defaults</button></div>';
+    html += '</main>';
+    return html;
+  }
+
+  var SETTINGS_TABS = [['general','General'],['yarnPresets','Yarn Presets']];
+
+  function renderSettingsView(){
+    var html = '';
+    html += '<div class="app-header"><div class="brand"><h1>Crochet Projects</h1></div>';
+    html += '<button class="btn" data-action="go-home">← All Projects</button></div>';
+    html += '<main>';
+    html += '<div class="project-title-row"><h2>Settings</h2></div>';
+
+    html += '<div class="tabs">';
+    SETTINGS_TABS.forEach(function(tab){
+      html += '<div class="tab'+(state.settingsTab===tab[0]?' active':'')+'" data-action="set-settings-tab" data-tab="'+tab[0]+'">'+tab[1]+'</div>';
+    });
+    html += '</div>';
+
+    if(state.settingsTab==='general'){
+      html += renderGeneralSettingsTab();
+    } else {
+      html += renderYarnPresetsSettingsTab();
+    }
+
+    html += '</main>';
+    return html;
+  }
+
+  function renderGeneralSettingsTab(){
+    var current = getTheme();
+    var html = '<div class="field" style="max-width:420px;"><label>Theme</label>';
+    html += '<div style="display:flex;gap:8px;">';
+    [['system','System'],['light','Light'],['dark','Dark']].forEach(function(opt){
+      html += '<button class="btn btn-sm'+(current===opt[0]?' btn-primary':'')+'" data-action="set-theme" data-theme="'+opt[0]+'">'+opt[1]+'</button>';
+    });
+    html += '</div><div class="hint" style="margin-top:8px;">"System" follows your device\'s light/dark setting. This is saved on this device only.</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function renderYarnPresetsSettingsTab(){
+    var html = '<div class="section-title"><h2 style="font-size:16px;">Yarn preset options</h2><button class="btn btn-sm" data-action="reset-yarn-presets">Reset to defaults</button></div>';
     html += '<div class="hint" style="margin-bottom:14px;">Manage the dropdown choices offered when adding yarn to the Stash.</div>';
     YARN_PRESET_CATEGORIES.forEach(function(cat){
       html += '<div class="field" style="margin-bottom:20px;max-width:420px;"><label>'+cat[1]+'</label>';
@@ -732,14 +868,15 @@
       (db.yarnPresets[cat[0]]||[]).forEach(function(opt){
         html += '<span class="preset-chip">'+escapeHtml(opt)+'<span class="rm2" data-action="remove-preset-option" data-category="'+cat[0]+'" data-value="'+escapeHtml(opt)+'" title="Remove">×</span></span>';
       });
+      if(!(db.yarnPresets[cat[0]]||[]).length){
+        html += '<span class="hint">No options yet.</span>';
+      }
       html += '</div>';
       html += '<div class="add-color-row" style="margin-top:8px;">';
       html += '<input type="text" id="new-preset-'+cat[0]+'" placeholder="Add an option…">';
       html += '<button class="btn btn-sm" data-action="add-preset-option" data-category="'+cat[0]+'">Add</button>';
       html += '</div></div>';
     });
-
-    html += '</main>';
     return html;
   }
 
@@ -795,38 +932,60 @@
     for(var i=0;i<boxes.length;i++){ if(boxes[i].checked) ids.push(boxes[i].getAttribute('data-yarn-check')); }
     return ids;
   }
-  function quickAddYarnRowHtml(containerId, hexId, nameId, extraAttrs){
-    var html = '<div class="add-color-row" style="margin-top:8px;">';
-    html += '<input type="color" id="'+hexId+'" value="#d97a5f">';
-    html += '<input type="text" id="'+nameId+'" placeholder="New yarn name">';
-    html += '<button class="btn btn-sm" data-action="quick-add-yarn-to-list" data-container="'+containerId+'" data-hexid="'+hexId+'" data-nameid="'+nameId+'"'+(extraAttrs||'')+'>+ Add</button>';
-    html += '</div>';
-    return html;
+  function addYarnButtonHtml(kind, containerId){
+    return '<button class="btn btn-sm" style="width:100%;margin-top:8px;" data-action="open-add-yarn-from-checklist" data-kind="'+kind+'" data-container="'+containerId+'">+ Add New Yarn</button>';
+  }
+  function reopenYarnReturnModal(newYarnId){
+    var ret = state.yarnAddReturn;
+    state.yarnAddReturn = null;
+    if(!ret) return false;
+    var ids = ret.checkedIds.slice();
+    if(newYarnId) ids.push(newYarnId);
+    if(ret.kind==='project-yarn'){
+      openProjectYarnModal(ids);
+    } else if(ret.kind==='pattern-yarn'){
+      openPatternYarnModal(ids);
+    } else if(ret.kind==='new-project'){
+      openNewProjectModal(ids, ret.name);
+    } else if(ret.kind==='new-pattern'){
+      if(newYarnId){
+        var proj = getProject(state.projectId);
+        if(proj && (proj.yarnIds||[]).indexOf(newYarnId)===-1){
+          proj.yarnIds = (proj.yarnIds||[]).concat([newYarnId]);
+          saveProjectDoc(proj);
+        }
+      }
+      openNewPatternModal(ids, {name:ret.name, rows:ret.rows, cols:ret.cols});
+    } else {
+      return false;
+    }
+    return true;
   }
 
-  function openProjectYarnModal(){
+  function openProjectYarnModal(presetIds){
     var project = getProject(state.projectId);
     if(!project) return;
+    var checked = presetIds || project.yarnIds || [];
     var html = '<div class="modal">';
     html += '<h3>Project Yarn</h3>';
     html += '<div class="hint" style="margin-bottom:10px;">Choose which yarn from your Stash this project uses.</div>';
-    html += '<div id="project-yarn-checklist">'+yarnChecklistHtml(project.yarnIds||[])+'</div>';
-    html += quickAddYarnRowHtml('project-yarn-checklist','py-new-hex','py-new-name');
+    html += '<div id="project-yarn-checklist">'+yarnChecklistHtml(checked)+'</div>';
+    html += addYarnButtonHtml('project-yarn','project-yarn-checklist');
     html += '<div class="modal-actions"><button class="btn" data-action="modal-cancel">Cancel</button><button class="btn btn-primary" data-action="save-project-yarn">Save</button></div>';
     html += '</div>';
     openModal(html);
   }
 
-  function openPatternYarnModal(){
+  function openPatternYarnModal(presetIds){
     var project = getProject(state.projectId);
     var pattern = getPattern(project, state.patternId);
     if(!pattern) return;
+    var checked = presetIds || pattern.yarnIds || [];
     var html = '<div class="modal">';
     html += '<h3>Pattern Yarn</h3>';
     html += '<div class="hint" style="margin-bottom:10px;">Choose which yarn this pattern uses. Checking one not yet in this project\'s yarn also adds it there.</div>';
-    html += '<div id="pattern-yarn-checklist">'+yarnChecklistHtml(pattern.yarnIds||[])+'</div>';
-    html += quickAddYarnRowHtml('pattern-yarn-checklist','pty-new-hex','pty-new-name',
-      project ? ' data-cascade-project="'+project.id+'"' : '');
+    html += '<div id="pattern-yarn-checklist">'+yarnChecklistHtml(checked)+'</div>';
+    html += addYarnButtonHtml('pattern-yarn','pattern-yarn-checklist');
     html += '<div class="modal-actions"><button class="btn" data-action="modal-cancel">Cancel</button><button class="btn btn-primary" data-action="save-pattern-yarn">Save</button></div>';
     html += '</div>';
     openModal(html);
@@ -1113,13 +1272,13 @@
   function closeModal(){ modalRoot.innerHTML = ''; }
   function openModal(html){ modalRoot.innerHTML = '<div class="modal-backdrop" data-action="modal-backdrop">'+html+'</div>'; }
 
-  function openNewProjectModal(){
+  function openNewProjectModal(presetIds, presetName){
     var html = '<div class="modal">';
     html += '<h3>New Project</h3>';
-    html += '<div class="field"><label>Project name</label><input type="text" id="modal-project-name" placeholder="e.g. Mia\'s Blanket" autofocus></div>';
+    html += '<div class="field"><label>Project name</label><input type="text" id="modal-project-name" value="'+(presetName?escapeHtml(presetName):'')+'" placeholder="e.g. Mia\'s Blanket" autofocus></div>';
     html += '<div class="field"><label>Yarn for this project</label>';
-    html += '<div id="new-project-yarn-checklist">'+yarnChecklistHtml([])+'</div>';
-    html += quickAddYarnRowHtml('new-project-yarn-checklist','npy-new-hex','npy-new-name');
+    html += '<div id="new-project-yarn-checklist">'+yarnChecklistHtml(presetIds||[])+'</div>';
+    html += addYarnButtonHtml('new-project','new-project-yarn-checklist');
     html += '</div>';
     html += '<div class="modal-actions"><button class="btn" data-action="modal-cancel">Cancel</button><button class="btn btn-primary" data-action="modal-create-project">Create</button></div>';
     html += '</div>';
@@ -1127,19 +1286,19 @@
     setTimeout(function(){ var el=document.getElementById('modal-project-name'); if(el) el.focus(); },0);
   }
 
-  function openNewPatternModal(){
+  function openNewPatternModal(presetIds, presetFields){
     var project = getProject(state.projectId);
     var projectYarn = project ? db.yarnStash.filter(function(y){ return (project.yarnIds||[]).indexOf(y.id)!==-1; }) : [];
-    var allIds = projectYarn.map(function(y){ return y.id; });
+    var checked = presetIds || projectYarn.map(function(y){ return y.id; });
+    presetFields = presetFields || {};
     var html = '<div class="modal">';
     html += '<h3>New Pattern</h3>';
-    html += '<div class="field"><label>Pattern name</label><input type="text" id="modal-pattern-name" placeholder="e.g. Front Panel" autofocus></div>';
-    html += '<div class="field-row"><div class="field"><label>Rows</label><input type="number" id="modal-pattern-rows" min="1" max="100" value="20"></div>';
-    html += '<div class="field"><label>Columns</label><input type="number" id="modal-pattern-cols" min="1" max="100" value="20"></div></div>';
+    html += '<div class="field"><label>Pattern name</label><input type="text" id="modal-pattern-name" value="'+(presetFields.name?escapeHtml(presetFields.name):'')+'" placeholder="e.g. Front Panel" autofocus></div>';
+    html += '<div class="field-row"><div class="field"><label>Rows</label><input type="number" id="modal-pattern-rows" min="1" max="100" value="'+(presetFields.rows||20)+'"></div>';
+    html += '<div class="field"><label>Columns</label><input type="number" id="modal-pattern-cols" min="1" max="100" value="'+(presetFields.cols||20)+'"></div></div>';
     html += '<div class="field"><label>Yarn for this pattern</label>';
-    html += '<div id="new-pattern-yarn-checklist">'+yarnChecklistHtml(allIds, projectYarn)+'</div>';
-    html += quickAddYarnRowHtml('new-pattern-yarn-checklist','npty-new-hex','npty-new-name',
-      project ? ' data-cascade-project="'+project.id+'" data-scope-project="'+project.id+'"' : '');
+    html += '<div id="new-pattern-yarn-checklist">'+yarnChecklistHtml(checked, projectYarn)+'</div>';
+    html += addYarnButtonHtml('new-pattern','new-pattern-yarn-checklist');
     html += '</div>';
     html += '<div class="modal-actions"><button class="btn" data-action="modal-cancel">Cancel</button><button class="btn btn-primary" data-action="modal-create-pattern">Create</button></div>';
     html += '</div>';
@@ -1246,8 +1405,8 @@
 
     switch(action){
       case 'new-project': openNewProjectModal(); break;
-      case 'modal-cancel': closeModal(); break;
-      case 'modal-backdrop': if(e.target===t) closeModal(); break;
+      case 'modal-cancel': state.yarnAddReturn = null; closeModal(); break;
+      case 'modal-backdrop': if(e.target===t){ state.yarnAddReturn = null; closeModal(); } break;
       case 'modal-create-project': {
         var nameEl = document.getElementById('modal-project-name');
         var name = nameEl ? nameEl.value.trim() : '';
@@ -1276,6 +1435,9 @@
       }
       case 'go-home': state.view='home'; render(); break;
       case 'open-yarnstash': state.view='yarnstash'; render(); break;
+      case 'open-settings': state.view='settings'; render(); break;
+      case 'set-settings-tab': state.settingsTab = t.getAttribute('data-tab'); render(); break;
+      case 'set-theme': setTheme(t.getAttribute('data-theme')); render(); break;
       case 'open-add-yarn': openYarnModal(null); break;
       case 'edit-yarn': openYarnModal(t.getAttribute('data-id')); break;
       case 'modal-save-yarn': {
@@ -1288,6 +1450,7 @@
         YARN_PRESET_CATEGORIES.forEach(function(cat){
           yfields[cat[0]] = document.getElementById('yarn-'+cat[0]).value || null;
         });
+        var savedYarnId = yid;
         if(yid){
           var existingYarn = getYarn(yid);
           if(existingYarn){
@@ -1305,12 +1468,16 @@
           };
           db.yarnStash.push(newYarn);
           saveYarnDoc(newYarn);
+          savedYarnId = newYarn.id;
         }
-        closeModal();
-        render();
+        if(!reopenYarnReturnModal(savedYarnId)){
+          closeModal();
+          render();
+        }
         break;
       }
       case 'delete-yarn': {
+        e.stopPropagation();
         var dyid = t.getAttribute('data-id');
         var dyarn = getYarn(dyid);
         if(dyarn && confirm('Delete "'+dyarn.name+'" from your Yarn Stash? It will also be removed from any project/pattern yarn lists that include it (cells already painted with it keep their color).')){
@@ -1361,34 +1528,24 @@
         }
         break;
       }
-      case 'quick-add-yarn-to-list': {
-        var hexEl2 = document.getElementById(t.getAttribute('data-hexid'));
-        var nameEl5 = document.getElementById(t.getAttribute('data-nameid'));
-        var qname = nameEl5.value.trim();
-        if(!qname) break;
-        var qy = {
-          id: uid(), name: qname, hex: hexEl2.value,
-          brand: null, material: null, size: null, hookSize: null,
-          createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
-        };
-        db.yarnStash.push(qy);
-        saveYarnDoc(qy);
-        var cascadeProjectId = t.getAttribute('data-cascade-project');
-        var scopeProjectId = t.getAttribute('data-scope-project');
-        if(cascadeProjectId){
-          var cp = getProject(cascadeProjectId);
-          if(cp){ cp.yarnIds = (cp.yarnIds||[]).concat([qy.id]); saveProjectDoc(cp); }
+      case 'open-add-yarn-from-checklist': {
+        var addKind = t.getAttribute('data-kind');
+        var addContainer = document.getElementById(t.getAttribute('data-container'));
+        var addChecked = addContainer ? readCheckedYarnIds(addContainer) : [];
+        var addRet = {kind: addKind, checkedIds: addChecked};
+        if(addKind==='new-project'){
+          var npNameEl = document.getElementById('modal-project-name');
+          addRet.name = npNameEl ? npNameEl.value : '';
+        } else if(addKind==='new-pattern'){
+          var nptNameEl = document.getElementById('modal-pattern-name');
+          var nptRowsEl = document.getElementById('modal-pattern-rows');
+          var nptColsEl = document.getElementById('modal-pattern-cols');
+          addRet.name = nptNameEl ? nptNameEl.value : '';
+          addRet.rows = nptRowsEl ? nptRowsEl.value : '20';
+          addRet.cols = nptColsEl ? nptColsEl.value : '20';
         }
-        var pool = db.yarnStash;
-        if(scopeProjectId){
-          var sp = getProject(scopeProjectId);
-          if(sp) pool = db.yarnStash.filter(function(y){ return (sp.yarnIds||[]).indexOf(y.id)!==-1; });
-        }
-        var listContainer = document.getElementById(t.getAttribute('data-container'));
-        var currentIds = readCheckedYarnIds(listContainer);
-        currentIds.push(qy.id);
-        listContainer.innerHTML = yarnChecklistHtml(currentIds, pool);
-        nameEl5.value = '';
+        state.yarnAddReturn = addRet;
+        openYarnModal(null);
         break;
       }
       case 'open-project-yarn': openProjectYarnModal(); break;
@@ -1624,16 +1781,14 @@
         var prjZI = getProject(state.projectId);
         var patZI = getPattern(prjZI, state.patternId);
         if(!patZI) break;
-        patZI.cellSize = clamp(patZI.cellSize+4, CELL_SIZE_MIN, CELL_SIZE_MAX);
-        touch(prjZI); persist(prjZI, patZI); render();
+        zoomPatternAroundPoint(prjZI, patZI, clamp(patZI.cellSize+4, CELL_SIZE_MIN, CELL_SIZE_MAX));
         break;
       }
       case 'zoom-out': {
         var prjZO = getProject(state.projectId);
         var patZO = getPattern(prjZO, state.patternId);
         if(!patZO) break;
-        patZO.cellSize = clamp(patZO.cellSize-4, CELL_SIZE_MIN, CELL_SIZE_MAX);
-        touch(prjZO); persist(prjZO, patZO); render();
+        zoomPatternAroundPoint(prjZO, patZO, clamp(patZO.cellSize-4, CELL_SIZE_MIN, CELL_SIZE_MAX));
         break;
       }
       case 'guide-toggle': {
@@ -1785,13 +1940,11 @@
         var project = getProject(state.projectId);
         var pattern = getPattern(project, state.patternId);
         if(pattern){
-          var dist = touchDist(state.touchPoints[ids[0]], state.touchPoints[ids[1]]);
+          var a = state.touchPoints[ids[0]], b = state.touchPoints[ids[1]];
+          var dist = touchDist(a,b);
           var ratio = dist / state.pinch.startDist;
           var newSize = clamp(Math.round(state.pinch.startCellSize * ratio), CELL_SIZE_MIN, CELL_SIZE_MAX);
-          if(newSize !== pattern.cellSize){
-            pattern.cellSize = newSize;
-            render();
-          }
+          zoomPatternAroundPoint(project, pattern, newSize, (a.x+b.x)/2, (a.y+b.y)/2, true);
         }
       }
       e.preventDefault();
@@ -1833,9 +1986,7 @@
     e.preventDefault();
     var delta = e.deltaY > 0 ? -2 : 2;
     var newSize = clamp(pattern.cellSize + delta, CELL_SIZE_MIN, CELL_SIZE_MAX);
-    if(newSize === pattern.cellSize) return;
-    pattern.cellSize = newSize;
-    touch(project); persist(project, pattern); render();
+    zoomPatternAroundPoint(project, pattern, newSize, e.clientX, e.clientY);
   }, {passive:false});
 
   /* keyboard nav for guide mode */
