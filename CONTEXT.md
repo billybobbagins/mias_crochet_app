@@ -29,11 +29,17 @@ production/hosting hardening needed yet.
 Storage is now **Firebase** (Firestore + Authentication), replacing the old
 single-`localStorage`-blob approach:
 
-- **Auth**: one fixed, shared login account (email/password under the hood).
-  Mia sees a simple "enter passcode" screen; the app signs in with a fixed
-  email constant (`LOGIN_EMAIL` in `index.html`) and whatever passcode she
-  types. Firebase persists the signed-in session across visits, so she only
-  types it again if she signs out or clears site data.
+- **Auth**: two fixed login accounts (email/password under the hood),
+  isolated from each other by Firestore uid — "Mia" and "Developer". The
+  login screen shows a small account picker before the passcode field
+  (`LOGIN_ACCOUNTS` in `index.html`); each account's data lives under its
+  own `users/{uid}` subtree, enforced by `firestore.rules`. The "Developer"
+  account is for testing without touching Mia's real data. Firebase persists
+  the signed-in session across visits, so re-entering the passcode is only
+  needed after signing out or clearing site data. **Setup step**: the "mia"
+  account (email `mia@mias-crochet-patterns.app`) must be created once in
+  the Firebase console with whatever passcode Mia should use — the "dev"
+  account already exists.
 - **Data model** (Firestore): `users/{uid}/projects/{projectId}` holds
   project metadata (name, palette, timestamps); each project has a
   `patterns/{patternId}` subcollection holding one document per pattern
@@ -49,87 +55,103 @@ single-`localStorage`-blob approach:
 - **Legacy import**: on first successful login, if this browser still has
   old `localStorage` data (key `miasCrochetApp.v1`) and the Firestore account
   is empty, the app offers to import it rather than losing it.
-- **Backup/restore** still exists, now reading/writing Firestore instead of
-  `localStorage`: Backup downloads the in-memory DB as `.json`; Restore wipes
-  all Firestore data for the account and re-imports from the uploaded file.
+- **Backup/Restore removed** (2026-09-12): now that data syncs live to
+  Firestore, a manual JSON backup/restore was redundant and risked
+  confusion (e.g. restoring an old file over synced data). Replaced with a
+  **Refresh** button on the home screen that re-pulls from Firestore, useful
+  when testing sync across two devices/tabs.
 - Known trade-offs to keep in mind:
   - No realtime cross-tab/cross-device push updates yet — data is fetched
     once at login and written through on change, not live-synced while two
     sessions are open simultaneously. Fine for a single person using one
     device at a time; would need `onSnapshot` listeners if that changes.
-  - The shared-passcode model is "good enough for a hobby app for one
-    person," not a real multi-user auth system — don't scale this pattern up
-    without redesigning auth if more users are ever added.
+  - The fixed-passcode-per-account model is "good enough for a hobby app for
+    two people," not a real multi-user auth system — don't scale this
+    pattern up (e.g. self-serve signup) without redesigning auth if more
+    users are ever added.
 
 ## Current functionality
 
 ### Home screen
-- Grid of project cards (name, pattern count, last-updated date, palette
-  swatch preview).
+- Grid of project cards (name, pattern count, last-updated date — no color
+  preview, since projects are moving toward a yarn-based model rather than
+  flat color swatches).
 - Create / delete projects. Delete requires confirmation.
-- Backup (download JSON) and Restore (upload JSON, full overwrite) buttons.
+- Refresh button (re-pulls the latest data from Firestore) and Log out.
 
 ### Projects
-- Each project has its own color palette: add a color (hex + name picker),
-  remove a color from the palette (doesn't affect cells already painted with
-  it, since cells store raw hex).
+- Each project has its own yarn palette ("Project Yarn"): add a yarn
+  (hex + name picker), remove one (doesn't affect cells already painted with
+  it, since cells store raw hex). Still a flat color+name list today — a
+  richer Yarn Stash model (brand/material/hook size, shared across projects)
+  is planned as a follow-up, see To Do.
 - Rename / delete project.
 - A project holds one or more patterns, shown as tabs.
 
 ### Patterns
-- Create / rename / duplicate / delete patterns within a project.
-- Configurable grid size (1–100 rows × 1–100 cols), resizable after creation
-  (shrinking prompts a confirmation since it discards out-of-bounds cells).
-- Adjustable cell size (px) and cell aspect ratio (to approximate real
-  stitch proportions, since crochet stitches aren't square).
+- Create / rename / duplicate / delete patterns within a project (rename,
+  duplicate, delete are icon buttons in the pattern header; Edit/Done Editing
+  are the two text buttons).
+- Configurable grid size (1–100 rows × 1–100 cols), resizable via Pattern
+  Settings (shrinking prompts a confirmation since it discards out-of-bounds
+  cells).
+- Cell zoom (toolbar +/− buttons, 12–44px) and a Cell Height:Width Ratio
+  preset dropdown (Taller/Tall/Square/Wide/Wider) to approximate real stitch
+  proportions, since crochet stitches aren't square.
 - Row/column numbering: direction can be flipped (top→bottom vs
   bottom→top, left→right vs right→left), and which side highlights
   odd-numbered rows/columns is configurable (matches how graphgan patterns
-  are conventionally read).
+  are conventionally read). Highlighted label chips are neutral grey, not
+  the app's orange accent, so they don't compete visually with painted yarn
+  colors.
 
 ### Pattern editor ("Edit" mode)
-- Horizontal toolbar above the grid (replaces the old side-by-side sidebar,
-  which used to get pushed below the grid on anything but very wide screens):
-  Undo/Redo, Tools, active color, Clear Grid, and a Grid Settings dropdown,
-  left to right.
-- Tools: Paint, Bucket (flood fill), Erase, and **Pan** — icon-only buttons
-  (simple monochrome inline-SVG icons, no emoji). Pan lets you drag to scroll
-  a grid that's wider/taller than the viewport (mainly for touch — dragging
-  with Paint/Fill/Erase active always paints instead of scrolling, since
-  touch has no separate "scroll" gesture available while a paint tool is
-  selected).
-- Active color is a single button showing the current color. Clicking it
-  opens a dropdown with the project's palette ("yarn I actually have for this
-  project") to pick from, plus an "add a new color" mini-form (color wheel +
-  name) for adding to the palette mid-project — still available, just moved
-  off the main toolbar into this dropdown.
-- Grid Settings (rows/cols/resize, row/column numbering, odd-highlight side,
-  cell size, aspect ratio) lives behind a dropdown toggle instead of always
-  being visible.
-- Undo/Redo: reverts/replays paint strokes, bucket fills, and Clear Grid (not
-  grid resize — that already has its own confirmation dialog). History is
-  in-memory only, capped at 50 steps, and resets when you switch patterns.
+- Two-row toolbar above the grid: Row 1 = Undo/Redo · Paint/Fill/Erase ·
+  Zoom−/Zoom+ · Pan · active-yarn button. Row 2 = Clear Grid (left) and
+  Pattern Settings (right). Two explicit rows (not a single wrapping row) so
+  it lays out predictably on a phone in landscape.
+- Tools: Paint, Bucket (flood fill), Erase — icon-only buttons. **Pan** is a
+  separate hand-icon toggle next to the zoom buttons rather than grouped
+  with the paint tools, since it plays a different role (viewport, not
+  drawing) — click it to scroll a grid wider/taller than the viewport,
+  mainly for touch.
+- Scroll position (pan/scroll offset within the grid) survives every
+  re-render, including switching tools — previously any state change reset
+  the grid's scroll to the top-left because the grid DOM was fully replaced
+  each time.
+- Active yarn is a single button showing the current color. Clicking it
+  opens a dropdown with the project's yarn ("Project Yarn") to pick from,
+  plus an "add a new yarn" mini-form (color wheel + name).
+- **Pattern Settings** (renamed from "Grid Settings") is Save/Cancel-gated:
+  opening it drafts the current rows/cols/numbering/ratio; edits only apply
+  to the draft. Save commits (running the resize-crop logic if rows/cols
+  changed) and persists; Cancel discards. Closing it any other way (outside
+  click, the toggle button, or switching pattern/mode) with unsaved changes
+  prompts to discard or keep editing.
+- Undo/Redo: reverts/replays paint strokes, bucket fills, Clear Grid, pattern
+  renames, and Pattern Settings saves that changed rows/cols (numbering and
+  aspect ratio are cosmetic display prefs, so they're intentionally excluded
+  from undo). History is in-memory only, capped at 50 steps, and resets when
+  you switch patterns. Bucket fill's undo/redo used to be unreliable because
+  it re-rendered the DOM mid-gesture (before `pointerup`), unlike paint/erase
+  — fixed by deferring bucket's render to `pointerup` like every other tool.
 - Pointer-based painting supporting mouse and touch, including drag-to-paint
   across multiple cells (except when Pan is the active tool).
-- "Clear Grid" action (with confirmation, now undoable afterward).
+- "Clear Grid" action (with confirmation, undoable afterward).
 
 ### Stitch guide ("View" mode)
 - Toggleable guide bar that steps through rows one at a time (Prev/Next
   buttons, arrow-key navigation).
 - Highlights the current row and dims the rest of the grid.
-- Shows a per-color stitch-count breakdown for the current row.
+- Shows a per-yarn stitch-count breakdown for the current row.
 - Respects the pattern's configured row-numbering direction.
 
 ### Login
-- Simple full-screen passcode gate before the app loads (backed by Firebase
-  Auth, one shared account — see Data & Storage above).
+- Full-screen passcode gate before the app loads, with a small account
+  picker ("Mia" / "Developer") above the passcode field — each is a
+  separate Firebase Auth account with its own isolated Firestore data (see
+  Data & Storage above).
 - "Log out" button on the home screen header.
-
-### Backup / restore
-- Backup: downloads the whole Firestore-backed DB as a timestamped `.json`
-  file.
-- Restore: uploads a `.json` file, wipes existing Firestore data for the
-  account, and re-imports from the file (after confirmation).
 
 ## To Do / backlog
 
@@ -144,12 +166,33 @@ ones as they come up. Nothing here is committed to until we discuss it.
       icons, move palette into an active-color dropdown, add undo/redo, add
       a Pan tool for mobile scrolling, fix intermittently-vanishing grid
       lines, neutral-tone the grid area, slim the header.
-- [ ] Real end-to-end test of this UX pass on desktop and an actual phone
-      (Claude couldn't browser-test it live — no Chrome tool available this
-      session, and no access to the real passcode). Please verify: toolbar
-      dropdowns (color + grid settings), undo/redo across paint/fill/clear,
-      Pan-tool scrolling on a phone with a wide pattern, and that grid lines
-      no longer vanish anywhere on a large grid.
+- [x] Second UX pass: neutral grid-label color, scroll-position-preserving
+      re-renders (fixes the Pan→Paint jump-to-top-left bug), bucket-fill
+      undo/redo fix, zoom +/− replacing manual cell-size slider, Cell
+      Height:Width Ratio presets, two-row toolbar, icon-only pattern header
+      actions, Pattern Settings Save/Cancel with undo/redo coverage for
+      resize/rename, "color"→"yarn" terminology, Backup/Restore removed in
+      favor of a Refresh button, project cards drop the color-swatch row,
+      two isolated login accounts (Mia / Developer).
+- [ ] **Create the "mia" Firebase Auth account** in the console
+      (`mia@mias-crochet-patterns.app` + a passcode of your choosing) — the
+      login screen's "Mia" button won't work until this exists.
+- [ ] Real end-to-end test of this second UX pass on desktop and an actual
+      phone (Claude couldn't browser-test the live login flow — no access to
+      either account's real passcode). Please verify: zoom +/− and Pan on a
+      phone with a wide pattern (no more jump-to-top-left switching tools),
+      bucket-fill undo/redo, toolbar as two clean rows on a phone in
+      landscape, Pattern Settings Save/Cancel/discard-prompt and its
+      undo/redo, pattern rename undo, Refresh pulling fresh data, and each
+      login account seeing separate projects once Mia's account exists.
+- [ ] **Yarn Stash system** (next planning pass): a proper yarn catalog
+      (brand/color/material/size/recommended hook, with manageable preset
+      dropdowns) plus "Project Yarn" (per-project subset) and "Pattern Yarn"
+      (per-pattern subset) tiers, with creation-time prompts to pick or add
+      yarn at each level. Deliberately scoped out of the second UX pass —
+      comparable in size to the whole toolbar rebuild on its own.
+- [ ] Broader "discard unsaved changes?" sweep beyond Pattern Settings
+      (raised alongside the Yarn Stash notes — not yet scoped).
 - [ ] (add more here as we plan upcoming work)
 
 ## Update checklist (run through this on every change we ship)
@@ -159,11 +202,70 @@ ones as they come up. Nothing here is committed to until we discuss it.
 - [ ] Update **To Do / backlog** (check off completed items, add newly
       discovered ones).
 - [ ] Manually smoke-test in a browser: create a project, create a pattern,
-      paint/fill/erase, resize the grid, run the stitch guide, backup and
-      restore.
+      paint/fill/erase, resize the grid, run the stitch guide, refresh from
+      the home screen.
 - [ ] Commit with a clear message.
 
 ## Changelog
+
+### 2026-09-12 (second UX pass: zoom/pan rework, settings save/undo, terminology, multi-login, cleanup)
+- **Grid label color**: highlighted row/column number chips (`.lbl-hi`) now
+  use a neutral grey/white pair instead of the orange accent color, so they
+  don't visually compete with painted yarn colors.
+- **Scroll-position preservation**: `render()` now records and restores
+  `.grid-scroll`'s scroll offset around every re-render. Root cause of the
+  "switching Pan→Paint jumps the view back to the top-left" bug: `render()`
+  replaces the grid's DOM wholesale on every state change (including a
+  plain tool switch), and a freshly-created scroll container always starts
+  at `scrollTop/scrollLeft = 0`.
+- **Bucket fill undo/redo fix**: bucket fill no longer calls `render()`
+  synchronously inside the `pointerdown` handler (replacing the DOM
+  mid-gesture, unlike paint/erase which patch the DOM directly and only
+  re-render at `pointerup`). It now computes the fill immediately but defers
+  render/persist to `pointerup` via the existing `endPaint()` path, matching
+  every other tool.
+- **Zoom + Pan rework**: removed Pan from the Paint/Fill/Erase tool group.
+  Added Zoom −/+ buttons (±4px per click, 12–44px range) that directly
+  adjust cell size; Pan is now its own toggle next to them. Removed the
+  manual "Cell size" slider from Pattern Settings (zoom owns this now).
+  Replaced the free 50–200% "Cell width" slider with a **Cell Height:Width
+  Ratio** preset dropdown (Taller 2:3 / Tall 5:6 / Square 1:1 / Wide 6:5 /
+  Wider 3:2), still writing the same underlying `aspect` number.
+- **Toolbar is now two explicit rows** on every screen size (not just
+  mobile): row 1 = Undo/Redo · tools · zoom/pan · active yarn; row 2 = Clear
+  Grid (left) / Pattern Settings (right). Avoids the awkward mid-group wraps
+  a single flex-wrap row produced on a phone in landscape.
+- **Pattern header actions → icons**: Rename/Duplicate/Delete are now
+  icon-only buttons (new pencil/copy/trash SVGs, trash redrawn simpler than
+  the old 🗑 emoji to match the others' style). "Edit Pattern"/"Done
+  Editing" shortened to **"Edit"/"Done"** (kept as the only text buttons in
+  that row).
+- **"Grid Settings" renamed to "Pattern Settings"** throughout.
+- **Pattern Settings Save/Cancel + undo integration**: opening the dropdown
+  now drafts `{rows, cols, numbering, aspect}` — edits apply to the draft
+  only. Save applies the draft (running the resize-crop logic if rows/cols
+  changed) and persists; Cancel discards. Closing any other way (outside
+  click, the toggle button, or switching pattern/edit-mode) while the draft
+  differs from the live pattern prompts to discard or keep editing.
+  Undo/redo snapshots widened from a bare `cells` array to
+  `{name, rows, cols, cells}`, so a Pattern Settings save that resizes the
+  grid, a pattern rename, and Clear Grid all now share the same single
+  undo/redo history (numbering and aspect ratio stay outside undo — they're
+  cosmetic, not data-destructive).
+- **Home screen**: removed Backup/Restore buttons (redundant now that data
+  syncs live to Firestore); added a **Refresh** button that re-pulls from
+  Firestore. Project cards drop the color-swatch preview row — just name +
+  pattern count + updated date now.
+- **Terminology**: user-facing "color" → "yarn" on today's project palette
+  feature ("Project Palette" → "Project Yarn", "Active color" → "Active
+  yarn", etc.) — internal variable/field names unchanged, this is a display
+  string change only ahead of the planned Yarn Stash system.
+- **Multi-account login**: added a "Mia" / "Developer" picker on the login
+  screen (`LOGIN_ACCOUNTS` in `index.html`), each a separate Firebase Auth
+  account with data isolated by uid (already enforced by `firestore.rules`,
+  no rules change needed). Requires manually creating the "mia" account in
+  the Firebase console — see To Do.
+- Not verified live in a browser this session — see To Do above.
 
 ### 2026-09-12 (pattern editor UX pass)
 - Widened the desktop layout (`main` max-width 1200px→1600px) and slimmed the

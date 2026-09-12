@@ -25,6 +25,8 @@
     --radius:16px;
     --grid-line:#d9d9d9;
     --grid-label-bg:#f0f0f0;
+    --grid-label-hi-bg:#dcdcdc;
+    --grid-label-hi-ink:#3d2f28;
     --cell-blank-bg: repeating-conic-gradient(#ffffff 0% 25%, #ececec 0% 50%) 50% / 10px 10px;
   }
   @media (prefers-color-scheme: dark){
@@ -43,6 +45,8 @@
       --shadow:0 2px 10px rgba(0,0,0,.35);
       --grid-line:#454545;
       --grid-label-bg:#2b2b2b;
+      --grid-label-hi-bg:#3a3a3a;
+      --grid-label-hi-ink:#f1e7db;
       --cell-blank-bg: repeating-conic-gradient(#262626 0% 25%, #2e2e2e 0% 50%) 50% / 10px 10px;
     }
   }
@@ -96,8 +100,6 @@
   .project-card:hover{transform:translateY(-2px);}
   .project-card h3{font-size:17px;}
   .project-card .meta{color:var(--ink-soft);font-size:12.5px;}
-  .project-card .swatches{display:flex;gap:4px;margin-top:auto;}
-  .swatch-dot{width:14px;height:14px;border-radius:50%;border:1px solid rgba(0,0,0,.15);}
   .project-card .card-actions{position:absolute;top:10px;right:10px;opacity:0;transition:opacity .15s;}
   .project-card:hover .card-actions{opacity:1;}
   .new-card{
@@ -131,10 +133,11 @@
   .pattern-layout{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;}
 
   .toolbar{
-    display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;
+    display:flex;flex-direction:column;gap:10px;margin-bottom:14px;
     background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
     padding:10px 12px;box-shadow:var(--shadow);
   }
+  .toolbar-row{display:flex;align-items:center;flex-wrap:wrap;gap:10px;}
   .toolbar-group{display:flex;align-items:center;gap:6px;}
   .toolbar-sep{width:1px;align-self:stretch;background:var(--border);}
   .icon-btn{
@@ -144,6 +147,7 @@
   .icon-btn svg{width:18px;height:18px;}
   .icon-btn.active{background:var(--accent);color:var(--accent-ink);border-color:transparent;}
   .icon-btn[disabled]{opacity:.4;cursor:not-allowed;}
+  .icon-btn-danger{color:var(--danger);border-color:var(--danger);}
   .color-btn{width:36px;height:36px;flex-shrink:0;border-radius:10px;border:2px solid var(--border);cursor:pointer;padding:0;}
   .dropdown-wrap{position:relative;}
   .dropdown-panel{
@@ -176,9 +180,6 @@
   }
   .field-row{display:flex;gap:8px;}
   .field-row .field{flex:1;}
-  .range-row{display:flex;align-items:center;gap:8px;}
-  .range-row input[type=range]{flex:1;}
-  .range-row .val{font-size:12px;color:var(--ink-soft);width:38px;text-align:right;}
 
   .grid-scroll{overflow:auto;max-width:100%;padding:6px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);}
   .grid-wrapper{
@@ -192,7 +193,7 @@
     font-size:11px;font-weight:700;color:var(--ink-soft);
     border-right:1px solid var(--grid-line);border-bottom:1px solid var(--grid-line);
   }
-  .lbl-hi{color:var(--accent-ink);background:var(--accent);font-weight:800;}
+  .lbl-hi{color:var(--grid-label-hi-ink);background:var(--grid-label-hi-bg);font-weight:800;}
   .lbl.row-current{outline:2px solid var(--sage);outline-offset:-2px;}
   .cell{background:#fff;cursor:pointer;border-right:1px solid var(--grid-line);border-bottom:1px solid var(--grid-line);}
   .cell.cell-blank{background:var(--cell-blank-bg);}
@@ -256,8 +257,23 @@
   firestoreDB.enablePersistence().catch(function(err){
     console.warn('Offline persistence unavailable:', err.code);
   });
-  var LOGIN_EMAIL = 'btattersall13@gmail.com';
+  // Two fixed Firebase Auth accounts sharing this app, each with its own
+  // Firestore data (isolated by uid via firestore.rules). Create the "mia"
+  // account in the Firebase console with this exact email + whatever
+  // passcode she should use; the "dev" account already exists.
+  var LOGIN_ACCOUNTS = [
+    {id:'mia', label:'Mia', email:'mia@mias-crochet-patterns.app'},
+    {id:'dev', label:'Developer', email:'btattersall13@gmail.com'}
+  ];
   var LEGACY_LOCAL_KEY = 'miasCrochetApp.v1';
+  var CELL_SIZE_MIN = 12, CELL_SIZE_MAX = 44;
+  var ASPECT_PRESETS = [
+    {label:'Taller (2:3)', value:0.6667},
+    {label:'Tall (5:6)', value:0.8333},
+    {label:'Square (1:1)', value:1},
+    {label:'Wide (6:5)', value:1.2},
+    {label:'Wider (3:2)', value:1.5}
+  ];
 
   /* ---------- helpers ---------- */
   function uid(){ return 'id_' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
@@ -283,6 +299,11 @@
     bucket: '<svg '+ICON_SVG_ATTRS+'><path d="m2 12 9-9 9 9-9 9-9-9z"/><path d="M11 3v9"/><path d="M20 17c0 1.7-1.3 3-3 3s-3-1.3-3-3c0-1.5 3-5 3-5s3 3.5 3 5z"/></svg>',
     erase: '<svg '+ICON_SVG_ATTRS+'><path d="M20 20H9l-6-6a2 2 0 0 1 0-2.8L12.2 2a2 2 0 0 1 2.8 0l6 6a2 2 0 0 1 0 2.8L14 18"/><path d="M6 12l6 6"/></svg>',
     pan: '<svg '+ICON_SVG_ATTRS+'><path d="M13 3v9m0 0V6a1.5 1.5 0 0 1 3 0v6m-3 0V8a1.5 1.5 0 0 1 3 0m-6 4V6a1.5 1.5 0 0 0-3 0v9"/><path d="M7 11v3a7 7 0 0 0 7 7h1a6 6 0 0 0 6-6v-3"/></svg>',
+    zoomIn: '<svg '+ICON_SVG_ATTRS+'><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/><path d="M11 8v6M8 11h6"/></svg>',
+    zoomOut: '<svg '+ICON_SVG_ATTRS+'><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/><path d="M8 11h6"/></svg>',
+    pencil: '<svg '+ICON_SVG_ATTRS+'><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+    copy: '<svg '+ICON_SVG_ATTRS+'><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+    trash: '<svg '+ICON_SVG_ATTRS+'><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/></svg>',
     gear: '<svg '+ICON_SVG_ATTRS+'><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
     chevronDown: '<svg '+ICON_SVG_ATTRS+'><path d="m6 9 6 6 6-6"/></svg>'
   };
@@ -404,16 +425,6 @@
     return chain;
   }
 
-  function wipeAllRemoteData(){
-    return userProjectsRef().get().then(function(snap){
-      var chain = Promise.resolve();
-      snap.docs.forEach(function(pDoc){
-        chain = chain.then(function(){ return deleteProjectRemote(pDoc.id); });
-      });
-      return chain;
-    });
-  }
-
   function tryImportLegacyLocalData(){
     try{
       var raw = localStorage.getItem(LEGACY_LOCAL_KEY);
@@ -442,14 +453,18 @@
     isPainting:false,
     paintingButton:null,
     colorPickerOpen:false,
-    gridSettingsOpen:false,
+    patternSettingsOpen:false,
+    patternSettingsDraft:null,
     undoStack:[],
     redoStack:[],
     strokeSnapshot:null
   };
 
+  function snapshotPattern(pattern){
+    return {name:pattern.name, rows:pattern.rows, cols:pattern.cols, cells:JSON.parse(JSON.stringify(pattern.cells))};
+  }
   function pushUndoSnapshot(pattern){
-    state.undoStack.push(JSON.parse(JSON.stringify(pattern.cells)));
+    state.undoStack.push(snapshotPattern(pattern));
     if(state.undoStack.length>50) state.undoStack.shift();
     state.redoStack = [];
   }
@@ -517,16 +532,22 @@
   var appEl = document.getElementById('app');
 
   function render(){
+    var scrollEl = document.querySelector('.grid-scroll');
+    var scrollLeft = scrollEl ? scrollEl.scrollLeft : null;
+    var scrollTop = scrollEl ? scrollEl.scrollTop : null;
     if(state.view === 'home') appEl.innerHTML = renderHome();
     else appEl.innerHTML = renderProjectView();
+    if(scrollLeft!==null){
+      var newScrollEl = document.querySelector('.grid-scroll');
+      if(newScrollEl){ newScrollEl.scrollLeft = scrollLeft; newScrollEl.scrollTop = scrollTop; }
+    }
   }
 
   function renderHome(){
     var html = '';
     html += '<div class="app-header"><div class="brand"><div class="logo">🧶</div><div><h1>Mia\'s Crochet Patterns</h1></div></div>';
     html += '<div style="display:flex;gap:8px;">';
-    html += '<button class="btn btn-icon" data-action="backup" title="Download a backup of all your data">⬇ Backup</button>';
-    html += '<button class="btn btn-icon" data-action="restore" title="Restore from a backup file">⬆ Restore</button>';
+    html += '<button class="btn btn-icon" data-action="refresh" title="Pull the latest data from the database">⟳ Refresh</button>';
     html += '<button class="btn btn-icon" data-action="logout" title="Log out">⎋ Log out</button>';
     html += '</div></div>';
     html += '<main>';
@@ -538,19 +559,17 @@
       html += '<div class="section-title"><h2>Your Projects</h2></div>';
       html += '<div class="project-grid">';
       db.projects.slice().sort(function(a,b){ return new Date(b.updatedAt)-new Date(a.updatedAt); }).forEach(function(p){
-        var swatches = p.palette.slice(0,6).map(function(c){ return '<div class="swatch-dot" style="background:'+escapeHtml(c.hex)+'" title="'+escapeHtml(c.name)+'"></div>'; }).join('');
         html += '<div class="project-card" data-action="open-project" data-id="'+p.id+'">';
         html += '<div class="card-actions"><button class="btn btn-icon btn-danger btn-sm" data-action="delete-project" data-id="'+p.id+'" title="Delete project">🗑</button></div>';
         html += '<h3>'+escapeHtml(p.name)+'</h3>';
         html += '<div class="meta">'+p.patterns.length+' pattern'+(p.patterns.length===1?'':'s')+' · updated '+fmtDate(p.updatedAt)+'</div>';
-        html += '<div class="swatches">'+swatches+'</div>';
         html += '</div>';
       });
       html += '<div class="new-card" data-action="new-project"><div class="plus">+</div><div>New Project</div></div>';
       html += '</div>';
     }
     html += '</main>';
-    html += '<footer>Your patterns are stored locally in this browser. Use Backup regularly so you never lose your work.</footer>';
+    html += '<footer>Your patterns are synced to your account.</footer>';
     return html;
   }
 
@@ -589,7 +608,7 @@
     }
 
     html += '</main>';
-    html += '<footer>Your patterns are stored locally in this browser. Use Backup regularly so you never lose your work.</footer>';
+    html += '<footer>Your patterns are synced to your account.</footer>';
     return html;
   }
 
@@ -598,13 +617,13 @@
     var html = '<div class="pattern-header">';
     html += '<h3>'+escapeHtml(pattern.name)+' <span class="hint">('+pattern.rows+' × '+pattern.cols+')</span></h3>';
     html += '<div class="actions">';
-    html += '<button class="btn btn-sm" data-action="rename-pattern" data-id="'+pattern.id+'">✎ Rename</button>';
-    html += '<button class="btn btn-sm" data-action="duplicate-pattern" data-id="'+pattern.id+'">⧉ Duplicate</button>';
-    html += '<button class="btn btn-sm btn-danger" data-action="delete-pattern" data-id="'+pattern.id+'">🗑 Delete</button>';
+    html += '<button class="icon-btn" data-action="rename-pattern" data-id="'+pattern.id+'" title="Rename">'+ICONS.pencil+'</button>';
+    html += '<button class="icon-btn" data-action="duplicate-pattern" data-id="'+pattern.id+'" title="Duplicate">'+ICONS.copy+'</button>';
+    html += '<button class="icon-btn icon-btn-danger" data-action="delete-pattern" data-id="'+pattern.id+'" title="Delete">'+ICONS.trash+'</button>';
     if(editing){
-      html += '<button class="btn btn-sm btn-sage" data-action="toggle-mode">✓ Done Editing</button>';
+      html += '<button class="btn btn-sm btn-sage" data-action="toggle-mode">Done</button>';
     } else {
-      html += '<button class="btn btn-sm btn-primary" data-action="toggle-mode">✎ Edit Pattern</button>';
+      html += '<button class="btn btn-sm btn-primary" data-action="toggle-mode">Edit</button>';
     }
     html += '</div></div>';
 
@@ -655,39 +674,50 @@
     return html;
   }
 
-  function gridSettingsFieldsHtml(pattern){
+  function patternSettingsFieldsHtml(draft){
     var html = '';
-    html += '<div class="field-row"><div class="field"><label>Rows</label><input type="number" id="resize-rows" min="1" max="100" value="'+pattern.rows+'"></div>';
-    html += '<div class="field"><label>Columns</label><input type="number" id="resize-cols" min="1" max="100" value="'+pattern.cols+'"></div></div>';
-    html += '<button class="btn btn-sm" data-action="resize-grid" style="width:100%;margin-bottom:12px;">Resize Grid</button>';
+    html += '<h4 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:8px;">Pattern Settings</h4>';
+    html += '<div class="field-row"><div class="field"><label>Rows</label><input type="number" id="draft-rows" min="1" max="100" value="'+draft.rows+'"></div>';
+    html += '<div class="field"><label>Columns</label><input type="number" id="draft-cols" min="1" max="100" value="'+draft.cols+'"></div></div>';
 
-    html += '<div class="field"><label>Row numbers</label><select data-action="set-numbering" data-field="flipV">';
-    html += '<option value="false"'+(!pattern.numbering.flipV?' selected':'')+'>Top → Bottom (1…N)</option>';
-    html += '<option value="true"'+(pattern.numbering.flipV?' selected':'')+'>Bottom → Top (N…1)</option>';
+    html += '<div class="field"><label>Row numbers</label><select data-action="set-draft-numbering" data-field="flipV">';
+    html += '<option value="false"'+(!draft.numbering.flipV?' selected':'')+'>Top → Bottom (1…N)</option>';
+    html += '<option value="true"'+(draft.numbering.flipV?' selected':'')+'>Bottom → Top (N…1)</option>';
     html += '</select></div>';
 
-    html += '<div class="field"><label>Column numbers</label><select data-action="set-numbering" data-field="flipH">';
-    html += '<option value="false"'+(!pattern.numbering.flipH?' selected':'')+'>Left → Right (1…N)</option>';
-    html += '<option value="true"'+(pattern.numbering.flipH?' selected':'')+'>Right → Left (N…1)</option>';
+    html += '<div class="field"><label>Column numbers</label><select data-action="set-draft-numbering" data-field="flipH">';
+    html += '<option value="false"'+(!draft.numbering.flipH?' selected':'')+'>Left → Right (1…N)</option>';
+    html += '<option value="true"'+(draft.numbering.flipH?' selected':'')+'>Right → Left (N…1)</option>';
     html += '</select></div>';
 
-    html += '<div class="field"><label>Highlight odd rows on</label><select data-action="set-numbering" data-field="oddV">';
-    html += '<option value="left"'+(pattern.numbering.oddV==='left'?' selected':'')+'>Left side</option>';
-    html += '<option value="right"'+(pattern.numbering.oddV==='right'?' selected':'')+'>Right side</option>';
+    html += '<div class="field"><label>Highlight odd rows on</label><select data-action="set-draft-numbering" data-field="oddV">';
+    html += '<option value="left"'+(draft.numbering.oddV==='left'?' selected':'')+'>Left side</option>';
+    html += '<option value="right"'+(draft.numbering.oddV==='right'?' selected':'')+'>Right side</option>';
     html += '</select></div>';
 
-    html += '<div class="field"><label>Highlight odd columns on</label><select data-action="set-numbering" data-field="oddH">';
-    html += '<option value="top"'+(pattern.numbering.oddH==='top'?' selected':'')+'>Top side</option>';
-    html += '<option value="bottom"'+(pattern.numbering.oddH==='bottom'?' selected':'')+'>Bottom side</option>';
+    html += '<div class="field"><label>Highlight odd columns on</label><select data-action="set-draft-numbering" data-field="oddH">';
+    html += '<option value="top"'+(draft.numbering.oddH==='top'?' selected':'')+'>Top side</option>';
+    html += '<option value="bottom"'+(draft.numbering.oddH==='bottom'?' selected':'')+'>Bottom side</option>';
     html += '</select></div>';
 
-    html += '<div class="field"><label>Cell size</label><div class="range-row"><input type="range" min="10" max="44" value="'+pattern.cellSize+'" data-action="set-cellsize"><span class="val">'+pattern.cellSize+'px</span></div></div>';
-    html += '<div class="field"><label>Cell width (stitch shape)</label><div class="range-row"><input type="range" min="50" max="200" value="'+Math.round(pattern.aspect*100)+'" data-action="set-aspect"><span class="val">'+Math.round(pattern.aspect*100)+'%</span></div></div>';
+    var closest = ASPECT_PRESETS[0];
+    ASPECT_PRESETS.forEach(function(p){ if(Math.abs(p.value-draft.aspect) < Math.abs(closest.value-draft.aspect)) closest = p; });
+    html += '<div class="field"><label>Cell Height:Width Ratio</label><select data-action="set-draft-aspect">';
+    ASPECT_PRESETS.forEach(function(p){
+      html += '<option value="'+p.value+'"'+(p===closest?' selected':'')+'>'+p.label+'</option>';
+    });
+    html += '</select></div>';
+
+    html += '<div class="modal-actions" style="margin-top:14px;">';
+    html += '<button class="btn btn-sm" data-action="cancel-pattern-settings">Cancel</button>';
+    html += '<button class="btn btn-sm btn-primary" data-action="save-pattern-settings">Save</button>';
+    html += '</div>';
     return html;
   }
 
   function renderToolbar(project, pattern){
     var html = '<div class="toolbar">';
+    html += '<div class="toolbar-row">';
 
     html += '<div class="toolbar-group">';
     html += '<button class="icon-btn" data-action="undo" title="Undo"'+(state.undoStack.length?'':' disabled')+'>'+ICONS.undo+'</button>';
@@ -695,40 +725,49 @@
     html += '</div><div class="toolbar-sep"></div>';
 
     html += '<div class="toolbar-group">';
-    var tools = [['paint',ICONS.paint,'Paint'],['bucket',ICONS.bucket,'Fill'],['erase',ICONS.erase,'Erase'],['pan',ICONS.pan,'Pan / Scroll']];
+    var tools = [['paint',ICONS.paint,'Paint'],['bucket',ICONS.bucket,'Fill'],['erase',ICONS.erase,'Erase']];
     tools.forEach(function(tt){
       html += '<button class="icon-btn'+(state.activeTool===tt[0]?' active':'')+'" data-action="set-tool" data-tool="'+tt[0]+'" title="'+tt[2]+'">'+tt[1]+'</button>';
     });
     html += '</div><div class="toolbar-sep"></div>';
 
+    html += '<div class="toolbar-group">';
+    html += '<button class="icon-btn" data-action="zoom-out" title="Zoom out"'+(pattern.cellSize<=CELL_SIZE_MIN?' disabled':'')+'>'+ICONS.zoomOut+'</button>';
+    html += '<button class="icon-btn" data-action="zoom-in" title="Zoom in"'+(pattern.cellSize>=CELL_SIZE_MAX?' disabled':'')+'>'+ICONS.zoomIn+'</button>';
+    html += '<button class="icon-btn'+(state.activeTool==='pan'?' active':'')+'" data-action="set-tool" data-tool="pan" title="Pan / Scroll">'+ICONS.pan+'</button>';
+    html += '</div><div class="toolbar-sep"></div>';
+
     html += '<div class="toolbar-group dropdown-wrap">';
-    html += '<button class="color-btn" data-action="toggle-color-picker" style="background:'+state.activeColor+';" title="Active color / yarn palette"></button>';
+    html += '<button class="color-btn" data-action="toggle-color-picker" style="background:'+state.activeColor+';" title="Active yarn"></button>';
     if(state.colorPickerOpen){
       html += '<div class="dropdown-panel">';
-      html += '<h4 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:8px;">Project Yarn Colors</h4>';
+      html += '<h4 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:8px;">Project Yarn</h4>';
       html += '<div class="palette-grid">';
       project.palette.forEach(function(c){
         var sel = state.activeColor.toLowerCase() === c.hex.toLowerCase();
         html += '<div class="palette-swatch'+(sel?' selected':'')+'" style="background:'+c.hex+'" data-action="select-palette-color" data-hex="'+c.hex+'" title="'+escapeHtml(c.name)+'">';
-        html += '<div class="rm" data-action="remove-palette-color" data-id="'+c.id+'" title="Remove from palette">×</div></div>';
+        html += '<div class="rm" data-action="remove-palette-color" data-id="'+c.id+'" title="Remove from project yarn">×</div></div>';
       });
       html += '</div>';
       html += '<div class="add-color-row">';
       html += '<input type="color" id="new-color-hex" value="#d97a5f">';
-      html += '<input type="text" id="new-color-name" placeholder="Color name">';
+      html += '<input type="text" id="new-color-name" placeholder="Yarn name">';
       html += '<button class="btn btn-sm btn-primary" data-action="add-palette-color">Add</button>';
       html += '</div>';
       html += '</div>';
     }
-    html += '</div><div class="toolbar-sep"></div>';
+    html += '</div>';
 
+    html += '</div>';
+
+    html += '<div class="toolbar-row">';
     html += '<button class="btn btn-sm btn-danger" data-action="clear-grid">Clear Grid</button>';
-
     html += '<div class="dropdown-wrap" style="margin-left:auto;">';
-    html += '<button class="btn btn-sm dropdown-toggle" data-action="toggle-grid-settings">'+ICONS.gear+' Grid Settings '+ICONS.chevronDown+'</button>';
-    if(state.gridSettingsOpen){
-      html += '<div class="dropdown-panel right">'+gridSettingsFieldsHtml(pattern)+'</div>';
+    html += '<button class="btn btn-sm dropdown-toggle" data-action="toggle-pattern-settings">'+ICONS.gear+' Pattern Settings '+ICONS.chevronDown+'</button>';
+    if(state.patternSettingsOpen && state.patternSettingsDraft){
+      html += '<div class="dropdown-panel right">'+patternSettingsFieldsHtml(state.patternSettingsDraft)+'</div>';
     }
+    html += '</div>';
     html += '</div>';
 
     html += '</div>';
@@ -861,7 +900,6 @@
     if(state.activeTool === 'bucket'){
       pushUndoSnapshot(pattern);
       bucketFill(pattern, row, col, color);
-      touch(project); persist(project, pattern); render();
       return;
     }
     if(pattern.cells[row][col] === color) return;
@@ -877,12 +915,34 @@
     }
   }
 
+  function patternSettingsDirty(pattern){
+    var d = state.patternSettingsDraft;
+    if(!d || !pattern) return false;
+    var rowsEl = document.getElementById('draft-rows');
+    var colsEl = document.getElementById('draft-cols');
+    var rows = rowsEl ? clamp(parseInt(rowsEl.value,10)||pattern.rows,1,100) : pattern.rows;
+    var cols = colsEl ? clamp(parseInt(colsEl.value,10)||pattern.cols,1,100) : pattern.cols;
+    return rows!==pattern.rows || cols!==pattern.cols || d.aspect!==pattern.aspect ||
+      JSON.stringify(d.numbering)!==JSON.stringify(pattern.numbering);
+  }
+  function closePatternSettingsPrompting(pattern){
+    if(pattern && patternSettingsDirty(pattern)){
+      if(!confirm('Discard unsaved pattern settings changes?')) return false;
+    }
+    state.patternSettingsOpen = false;
+    state.patternSettingsDraft = null;
+    return true;
+  }
+
   /* ================= EVENT WIRING ================= */
   document.addEventListener('click', function(e){
-    if((state.colorPickerOpen || state.gridSettingsOpen) && !e.target.closest('.dropdown-wrap')){
+    if(state.colorPickerOpen && !e.target.closest('.dropdown-wrap')){
       state.colorPickerOpen = false;
-      state.gridSettingsOpen = false;
       render();
+    } else if(state.patternSettingsOpen && !e.target.closest('.dropdown-wrap')){
+      var prOut = getProject(state.projectId);
+      var patOut = getPattern(prOut, state.patternId);
+      if(closePatternSettingsPrompting(patOut)) render();
     }
     var t = e.target.closest('[data-action]');
     if(!t) return;
@@ -936,6 +996,11 @@
       }
       case 'new-pattern': openNewPatternModal(); break;
       case 'open-pattern': {
+        if(state.patternSettingsOpen){
+          var prOP = getProject(state.projectId);
+          var patOP = getPattern(prOP, state.patternId);
+          if(!closePatternSettingsPrompting(patOP)) break;
+        }
         state.patternId = t.getAttribute('data-id');
         state.patternMode = 'view';
         state.guideActive = false;
@@ -948,7 +1013,7 @@
         var pt2 = getPattern(pr, t.getAttribute('data-id'));
         if(!pt2) break;
         var pn = prompt('Rename pattern', pt2.name);
-        if(pn && pn.trim()){ pt2.name = pn.trim(); touch(pr); persist(pr, pt2); render(); }
+        if(pn && pn.trim()){ pushUndoSnapshot(pt2); pt2.name = pn.trim(); touch(pr); persist(pr, pt2); render(); }
         break;
       }
       case 'duplicate-pattern': {
@@ -980,32 +1045,55 @@
         break;
       }
       case 'toggle-mode': {
+        var prTM = getProject(state.projectId);
+        var patTM = getPattern(prTM, state.patternId);
+        if(state.patternSettingsOpen && !closePatternSettingsPrompting(patTM)) break;
         state.patternMode = state.patternMode==='edit' ? 'view' : 'edit';
         state.guideActive = false;
         state.colorPickerOpen = false;
-        state.gridSettingsOpen = false;
         render();
         break;
       }
       case 'set-tool': state.activeTool = t.getAttribute('data-tool'); render(); break;
       case 'toggle-color-picker': {
+        if(state.patternSettingsOpen){
+          var prTC = getProject(state.projectId);
+          var patTC = getPattern(prTC, state.patternId);
+          if(!closePatternSettingsPrompting(patTC)) break;
+        }
         state.colorPickerOpen = !state.colorPickerOpen;
-        state.gridSettingsOpen = false;
         render();
         break;
       }
-      case 'toggle-grid-settings': {
-        state.gridSettingsOpen = !state.gridSettingsOpen;
-        state.colorPickerOpen = false;
-        render();
+      case 'toggle-pattern-settings': {
+        if(state.patternSettingsOpen){
+          var prTS = getProject(state.projectId);
+          var patTS = getPattern(prTS, state.patternId);
+          if(closePatternSettingsPrompting(patTS)) render();
+        } else {
+          var prTS2 = getProject(state.projectId);
+          var patTS2 = getPattern(prTS2, state.patternId);
+          if(patTS2){
+            state.patternSettingsDraft = {
+              rows: patTS2.rows,
+              cols: patTS2.cols,
+              numbering: JSON.parse(JSON.stringify(patTS2.numbering)),
+              aspect: patTS2.aspect
+            };
+            state.patternSettingsOpen = true;
+          }
+          state.colorPickerOpen = false;
+          render();
+        }
         break;
       }
       case 'undo': {
         var undoProj = getProject(state.projectId);
         var undoPat = getPattern(undoProj, state.patternId);
         if(!undoPat || !state.undoStack.length) break;
-        state.redoStack.push(JSON.parse(JSON.stringify(undoPat.cells)));
-        undoPat.cells = state.undoStack.pop();
+        state.redoStack.push(snapshotPattern(undoPat));
+        var undoSnap = state.undoStack.pop();
+        undoPat.name = undoSnap.name; undoPat.rows = undoSnap.rows; undoPat.cols = undoSnap.cols; undoPat.cells = undoSnap.cells;
         touch(undoProj); persist(undoProj, undoPat); render();
         break;
       }
@@ -1013,8 +1101,9 @@
         var redoProj = getProject(state.projectId);
         var redoPat = getPattern(redoProj, state.patternId);
         if(!redoPat || !state.redoStack.length) break;
-        state.undoStack.push(JSON.parse(JSON.stringify(redoPat.cells)));
-        redoPat.cells = state.redoStack.pop();
+        state.undoStack.push(snapshotPattern(redoPat));
+        var redoSnap = state.redoStack.pop();
+        redoPat.name = redoSnap.name; redoPat.rows = redoSnap.rows; redoPat.cols = redoSnap.cols; redoPat.cells = redoSnap.cells;
         touch(redoProj); persist(redoProj, redoPat); render();
         break;
       }
@@ -1028,7 +1117,7 @@
         e.stopPropagation();
         var prj = getProject(state.projectId);
         var cid = t.getAttribute('data-id');
-        if(confirm('Remove this color from the palette? Squares already painted with it will keep their color.')){
+        if(confirm('Remove this yarn from the project? Squares already painted with it will keep their color.')){
           prj.palette = prj.palette.filter(function(c){ return c.id!==cid; });
           touch(prj); persist(prj); render();
         }
@@ -1058,19 +1147,50 @@
         }
         break;
       }
-      case 'resize-grid': {
+      case 'save-pattern-settings': {
         var prj4 = getProject(state.projectId);
         var pat2 = getPattern(prj4, state.patternId);
-        if(!pat2) break;
-        var nr = clamp(parseInt(document.getElementById('resize-rows').value,10)||pat2.rows,1,100);
-        var nc = clamp(parseInt(document.getElementById('resize-cols').value,10)||pat2.cols,1,100);
-        if(nr<pat2.rows || nc<pat2.cols){
-          if(!confirm('Shrinking the grid will permanently remove stitches outside the new size. Continue?')) break;
+        if(!pat2 || !state.patternSettingsDraft) break;
+        var nr = clamp(parseInt(document.getElementById('draft-rows').value,10)||pat2.rows,1,100);
+        var nc = clamp(parseInt(document.getElementById('draft-cols').value,10)||pat2.cols,1,100);
+        var sizeChanged = (nr!==pat2.rows || nc!==pat2.cols);
+        if(sizeChanged){
+          if(nr<pat2.rows || nc<pat2.cols){
+            if(!confirm('Shrinking the grid will permanently remove stitches outside the new size. Continue?')) break;
+          }
+          pushUndoSnapshot(pat2);
+          pat2.cells = resizeCells(pat2.cells, pat2.rows, pat2.cols, nr, nc);
+          pat2.rows = nr; pat2.cols = nc;
+          pat2.cellSize = clamp(Math.round(420/Math.max(nr,nc)), 12, 30);
         }
-        pat2.cells = resizeCells(pat2.cells, pat2.rows, pat2.cols, nr, nc);
-        pat2.rows = nr; pat2.cols = nc;
-        pat2.cellSize = clamp(Math.round(420/Math.max(nr,nc)), 12, 30);
-        touch(prj4); persist(prj4, pat2); render();
+        pat2.numbering = state.patternSettingsDraft.numbering;
+        pat2.aspect = state.patternSettingsDraft.aspect;
+        touch(prj4); persist(prj4, pat2);
+        state.patternSettingsOpen = false;
+        state.patternSettingsDraft = null;
+        render();
+        break;
+      }
+      case 'cancel-pattern-settings': {
+        state.patternSettingsOpen = false;
+        state.patternSettingsDraft = null;
+        render();
+        break;
+      }
+      case 'zoom-in': {
+        var prjZI = getProject(state.projectId);
+        var patZI = getPattern(prjZI, state.patternId);
+        if(!patZI) break;
+        patZI.cellSize = clamp(patZI.cellSize+4, CELL_SIZE_MIN, CELL_SIZE_MAX);
+        touch(prjZI); persist(prjZI, patZI); render();
+        break;
+      }
+      case 'zoom-out': {
+        var prjZO = getProject(state.projectId);
+        var patZO = getPattern(prjZO, state.patternId);
+        if(!patZO) break;
+        patZO.cellSize = clamp(patZO.cellSize-4, CELL_SIZE_MIN, CELL_SIZE_MAX);
+        touch(prjZO); persist(prjZO, patZO); render();
         break;
       }
       case 'guide-toggle': state.guideActive = !state.guideActive; state.guidePos = 0; render(); break;
@@ -1081,8 +1201,17 @@
         render();
         break;
       }
-      case 'backup': doBackup(); break;
-      case 'restore': doRestoreClick(); break;
+      case 'refresh': {
+        renderLoadingScreen('Refreshing…');
+        loadAllFromFirestore().then(function(loaded){
+          db = loaded;
+          render();
+        }).catch(function(e){
+          console.error('Refresh failed', e);
+          render();
+        });
+        break;
+      }
       case 'logout': {
         if(confirm('Log out?')){
           db = {projects:[]};
@@ -1099,26 +1228,16 @@
     var t = e.target.closest('[data-action]');
     if(!t) return;
     var action = t.getAttribute('data-action');
-    if(action==='set-numbering'){
-      var prj = getProject(state.projectId);
-      var pat = getPattern(prj, state.patternId);
-      if(!pat) return;
+    if(action==='set-draft-numbering'){
+      if(!state.patternSettingsDraft) return;
       var field = t.getAttribute('data-field');
       var val = t.value;
-      pat.numbering[field] = (val==='true') ? true : (val==='false') ? false : val;
-      touch(prj); persist(prj, pat); render();
-    } else if(action==='set-cellsize'){
-      var prj2 = getProject(state.projectId);
-      var pat2 = getPattern(prj2, state.patternId);
-      if(!pat2) return;
-      pat2.cellSize = parseInt(t.value,10);
-      touch(prj2); persist(prj2, pat2); render();
-    } else if(action==='set-aspect'){
-      var prj3 = getProject(state.projectId);
-      var pat3 = getPattern(prj3, state.patternId);
-      if(!pat3) return;
-      pat3.aspect = parseInt(t.value,10)/100;
-      touch(prj3); persist(prj3, pat3); render();
+      state.patternSettingsDraft.numbering[field] = (val==='true') ? true : (val==='false') ? false : val;
+      render();
+    } else if(action==='set-draft-aspect'){
+      if(!state.patternSettingsDraft) return;
+      state.patternSettingsDraft.aspect = parseFloat(t.value);
+      render();
     }
   });
 
@@ -1134,7 +1253,7 @@
     e.preventDefault();
     state.isPainting = true;
     if(state.activeTool !== 'bucket'){
-      state.strokeSnapshot = JSON.parse(JSON.stringify(pattern.cells));
+      state.strokeSnapshot = snapshotPattern(pattern);
     }
     paintCell(project, pattern, parseInt(cell.getAttribute('data-row'),10), parseInt(cell.getAttribute('data-col'),10));
   });
@@ -1183,71 +1302,37 @@
     }
   });
 
-  /* ================= BACKUP / RESTORE ================= */
-  function doBackup(){
-    var blob = new Blob([JSON.stringify(db,null,2)], {type:'application/json'});
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    var stamp = new Date().toISOString().slice(0,10);
-    a.href = url;
-    a.download = 'mias-crochet-patterns-backup-'+stamp+'.json';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
-  function doRestoreClick(){
-    var input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'application/json';
-    input.onchange = function(){
-      var file = input.files[0];
-      if(!file) return;
-      var reader = new FileReader();
-      reader.onload = function(){
-        try{
-          var parsed = JSON.parse(reader.result);
-          if(!parsed || !Array.isArray(parsed.projects)) throw new Error('Invalid file');
-          if(!confirm('Restoring will replace ALL current data in your account with the contents of the backup file. Continue?')) return;
-          wipeAllRemoteData().then(function(){
-            return importProjectsToFirestore(parsed.projects);
-          }).then(function(){
-            return loadAllFromFirestore();
-          }).then(function(loaded){
-            db = loaded;
-            state.view='home'; state.projectId=null; state.patternId=null;
-            render();
-          }).catch(function(e){
-            console.error('Restore failed', e);
-            alert('Restore failed — check your connection and try again.');
-          });
-        }catch(err){
-          alert('Could not read that file — it doesn\'t look like a valid backup.');
-        }
-      };
-      reader.readAsText(file);
-    };
-    input.click();
-  }
-
   /* ================= AUTH / BOOT ================= */
   function renderLoginScreen(errorMsg){
+    var accountId = state.loginAccountId || LOGIN_ACCOUNTS[0].id;
+    var accountButtonsHtml = LOGIN_ACCOUNTS.map(function(a){
+      return '<button type="button" class="btn btn-sm'+(a.id===accountId?' btn-primary':'')+'" data-login-account="'+a.id+'">'+escapeHtml(a.label)+'</button>';
+    }).join('');
     appEl.innerHTML =
       '<div class="login-screen"><div class="login-card">' +
       '<div class="logo" style="font-size:40px;">🧶</div>' +
       '<h1>Mia\'s Crochet Patterns</h1>' +
-      '<p class="hint">Enter your passcode to continue</p>' +
+      '<div style="display:flex;gap:8px;justify-content:center;margin-top:10px;">'+accountButtonsHtml+'</div>' +
+      '<p class="hint" style="margin-top:10px;">Enter your passcode to continue</p>' +
       '<form id="login-form">' +
       '<input type="password" id="login-passcode" placeholder="Passcode" autofocus>' +
       (errorMsg ? '<p class="hint" style="color:var(--danger);">'+escapeHtml(errorMsg)+'</p>' : '') +
       '<button type="submit" class="btn btn-primary" style="width:100%;margin-top:14px;">Enter</button>' +
       '</form></div></div>';
+    var accountButtons = appEl.querySelectorAll('[data-login-account]');
+    for(var i=0;i<accountButtons.length;i++){
+      accountButtons[i].addEventListener('click', function(){
+        state.loginAccountId = this.getAttribute('data-login-account');
+        renderLoginScreen(errorMsg);
+      });
+    }
     var form = document.getElementById('login-form');
     form.addEventListener('submit', function(e){
       e.preventDefault();
       var pass = document.getElementById('login-passcode').value;
       if(!pass) return;
-      auth.signInWithEmailAndPassword(LOGIN_EMAIL, pass).catch(function(){
+      var acct = LOGIN_ACCOUNTS.filter(function(a){ return a.id===accountId; })[0] || LOGIN_ACCOUNTS[0];
+      auth.signInWithEmailAndPassword(acct.email, pass).catch(function(){
         renderLoginScreen('Incorrect passcode. Try again.');
       });
     });
