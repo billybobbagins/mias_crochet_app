@@ -41,10 +41,16 @@ single-`localStorage`-blob approach:
   usernames/emails stay an option later) and "dev" is the existing
   developer account — see `LOGIN_ACCOUNTS` in `index.html` for the mapping.
 - **Data model** (Firestore): `users/{uid}/projects/{projectId}` holds
-  project metadata (name, palette, timestamps); each project has a
+  project metadata (name, `yarnIds`, timestamps); each project has a
   `patterns/{patternId}` subcollection holding one document per pattern
-  (rows/cols/cellSize/aspect/numbering + `cellsJson`, the grid serialized as
-  a JSON string, to sidestep Firestore's no-nested-arrays restriction).
+  (rows/cols/cellSize/aspect/numbering/stitchDirection/guidePos/`yarnIds` +
+  `cellsJson`, the grid serialized as a JSON string, to sidestep Firestore's
+  no-nested-arrays restriction). Two more per-account collections:
+  `users/{uid}/yarnStash/{yarnId}` (the global yarn catalog — see Yarn Stash
+  below) and `users/{uid}/yarnPresets/lists` (a single doc holding the
+  editable brand/material/size/hook-size dropdown option lists). Cells
+  always store raw hex directly — the yarn system is a curation/picker
+  layer on top of that, not a new storage format for the grid.
 - **Offline persistence is enabled** (`firestoreDB.enablePersistence()`),
   so the app keeps working without a connection and syncs automatically once
   back online. This is what gives both resilience *and* multi-device sync in
@@ -83,12 +89,42 @@ single-`localStorage`-blob approach:
   disclaimer text anymore (removed — was leftover copy from the
   `localStorage`-only era and no longer accurate).
 
+### Yarn Stash / Project Yarn / Pattern Yarn
+Three-tier system for curating which colors are offered when picking a
+color to paint with. Cells still just store raw hex — this is entirely a
+picker/organization layer, not a grid-data change.
+- **Yarn Stash**: the global, per-account catalog of every yarn the user
+  owns — name + color are required, brand/material/size/recommended hook
+  size are optional. Managed from its own screen (🧶 **Yarn Stash** button
+  on the home header): a card grid of yarns (add/edit/delete) plus a
+  **Preset Options** section below it for editing the four dropdown option
+  lists those optional fields draw from (each also has an inline "add a
+  custom option" while adding/editing a yarn).
+- **Project Yarn**: a per-project *selection* from the Stash — picked when
+  the project is created (alongside its name) and manageable afterward via
+  a "🧶 Project Yarn" button in the project header. Unchecking a yarn there
+  also removes it from any of that project's patterns that had it selected.
+- **Pattern Yarn**: a per-pattern *selection* from the Stash — picked when
+  the pattern is created (alongside rows/cols, defaulting to the project's
+  full yarn list) and manageable afterward via "Manage Pattern Yarn" in the
+  toolbar's active-yarn dropdown (which now only lists the pattern's
+  current yarn, not the whole Stash). Checking a Stash yarn that isn't yet
+  part of the project auto-adds it to Project Yarn too — a deliberate
+  simplification of "pick from Project Yarn / pull from Stash / add
+  brand-new" into one list with an auto-expand side effect.
+- All three "add a new yarn" entry points (Stash screen, Project Yarn
+  modal, Pattern Yarn modal, and both creation modals) let you type a name
+  + pick a color inline; the Stash screen's Add/Edit form additionally
+  offers the four optional preset dropdowns.
+- **Migration**: projects/patterns created before this system (which had a
+  flat `project.palette` instead) are upgraded automatically the first time
+  they're loaded — each old palette entry becomes its own new Stash entry,
+  and the project/its patterns get `yarnIds` pointing at them. No prompt,
+  nothing lost. (Known edge case, not engineered around: if a client goes
+  offline mid-migration and reloads before the write syncs, it could create
+  duplicate Stash entries — low-probability for a single-user app.)
+
 ### Projects
-- Each project has its own yarn palette ("Project Yarn"): add a yarn
-  (hex + name picker), remove one (doesn't affect cells already painted with
-  it, since cells store raw hex). Still a flat color+name list today — a
-  richer Yarn Stash model (brand/material/hook size, shared across projects)
-  is planned as a follow-up, see To Do.
 - Rename / delete project.
 - A project holds one or more patterns, shown as tabs.
 
@@ -129,8 +165,10 @@ single-`localStorage`-blob approach:
   the grid's scroll to the top-left because the grid DOM was fully replaced
   each time.
 - Active yarn is a single button showing the current color. Clicking it
-  opens a dropdown with the project's yarn ("Project Yarn") to pick from,
-  plus an "add a new yarn" mini-form (color wheel + name).
+  opens a dropdown listing the pattern's yarn ("Pattern Yarn") to pick from,
+  plus a "Manage Pattern Yarn" action — see Yarn Stash / Project Yarn /
+  Pattern Yarn above. The pan icon is a simple 4-way move/cross-arrow, not
+  a hand — the original hand icon read oddly at this size.
 - **Pattern Settings** (renamed from "Grid Settings") is Save/Cancel-gated:
   opening it drafts the current rows/cols/numbering/ratio; edits only apply
   to the draft. Save commits (running the resize-crop logic if rows/cols
@@ -235,19 +273,27 @@ ones as they come up. Nothing here is committed to until we discuss it.
       desktop (does it still let you scroll the page normally everywhere
       else?), stitch-guide auto-centering and resume-position across a
       logout/reopen, and the vertical stitch direction's column highlighting.
-- [ ] **Yarn Stash system** (next planning pass): a proper yarn catalog
-      (brand/color/material/size/recommended hook, with manageable preset
-      dropdowns) plus "Project Yarn" (per-project subset) and "Pattern Yarn"
-      (per-pattern subset) tiers, with creation-time prompts to pick or add
-      yarn at each level (adding a custom yarn at the pattern level also adds
-      it to that project's Project Yarn; adding one at the project level
-      just adds it to the project). Project Yarn is managed from an option
-      in the project header; picking/adding yarn is prompted at project
-      creation (alongside the name) and at pattern creation (alongside
-      rows/cols). Deliberately scoped out of both UX passes so far —
-      comparable in size to the whole toolbar rebuild on its own.
+- [x] Small polish pass: icon-only Delete Project (matching pattern
+      delete), replaced the odd hand pan icon with a simple 4-way
+      move/cross-arrow, added a "Resuming where you left off" indicator +
+      "Revert to beginning" button when the stitch guide resumes a saved
+      position.
+- [x] **Yarn Stash / Project Yarn / Pattern Yarn system** — built in full:
+      a global yarn catalog with optional brand/material/size/hook-size
+      (each with editable presets), a per-project selection ("Project
+      Yarn", picked at project creation and manageable from the project
+      header), and a per-pattern selection ("Pattern Yarn", picked at
+      pattern creation and manageable from the toolbar), all with inline
+      "add a new yarn" and automatic upgrade of old projects' flat
+      palettes. See the dedicated section above for the full shape.
+- [ ] Real end-to-end test of the Yarn Stash system, which Claude could not
+      exercise live: a pre-existing project opening correctly with its old
+      colors now showing as Project Yarn; the full create-project → pick or
+      add yarn → create-pattern → pick or add yarn → paint flow; unchecking
+      a yarn from Project Yarn correctly clearing it from any pattern that
+      had it; a Preset Options "add"/"remove" surviving a refresh.
 - [ ] Broader "discard unsaved changes?" sweep beyond Pattern Settings
-      (raised alongside the Yarn Stash notes — not yet scoped).
+      (raised alongside the original Yarn Stash notes — not yet scoped).
 - [ ] (add more here as we plan upcoming work)
 
 ## Update checklist (run through this on every change we ship)
@@ -262,6 +308,64 @@ ones as they come up. Nothing here is committed to until we discuss it.
 - [ ] Commit with a clear message.
 
 ## Changelog
+
+### 2026-09-12 (Yarn Stash / Project Yarn / Pattern Yarn system)
+- **New Firestore collections**: `users/{uid}/yarnStash/{yarnId}` (the
+  global catalog — name, hex, optional brand/material/size/hookSize) and
+  `users/{uid}/yarnPresets/lists` (a single doc with the editable
+  brand/material/size/hookSize dropdown lists, seeded with crochet-standard
+  defaults via `defaultYarnPresets()` the first time it's read).
+- **Project and pattern docs gain `yarnIds`** (arrays of Stash ids),
+  replacing `project.palette`. `serializeProject` stops writing `palette`;
+  `deserializePattern` defaults a missing `yarnIds` to `null` (not `[]`) so
+  migration can tell "not yet migrated" apart from "migrated, zero yarns."
+- **Migration** (`migrateProjectYarn()`): runs once per project right after
+  load. If the project has no `yarnIds` yet, each of its old `palette`
+  entries becomes a new Stash doc and the project's `yarnIds` points at
+  them. Independently (not gated behind the same check, so a pattern whose
+  own write hadn't synced isn't skipped forever once its project is
+  already migrated), any of that project's patterns missing `yarnIds`
+  default to the project's full list.
+- **Yarn Stash screen** (new `state.view='yarnstash'`, via a 🧶 button on
+  the home header): a card grid of yarns (add/edit/delete, `openYarnModal`)
+  plus a Preset Options section (`YARN_PRESET_CATEGORIES`) for editing the
+  four dropdown lists as removable chips + an add-one-option row.
+- **Project Yarn**: a "🧶 Project Yarn" button in the project header opens
+  a checklist of every Stash yarn (`openProjectYarnModal` /
+  `yarnChecklistHtml`) plus an inline quick-add-a-new-yarn row
+  (`quickAddYarnRowHtml`); saving updates `project.yarnIds` and strips any
+  now-unlisted yarn from that project's patterns. The New Project modal
+  gained the same picker (optional — you can create with none checked).
+- **Pattern Yarn**: the toolbar's active-yarn dropdown now lists only
+  `pattern.yarnIds` (was every `project.palette` entry) plus a "Manage
+  Pattern Yarn" action opening a checklist of the *entire* Stash — checking
+  a yarn not yet in the project auto-adds it there too via the quick-add
+  handler's `data-cascade-project`/`data-scope-project` attributes. This
+  collapses the originally-described three-way choice ("pick from Project
+  Yarn, or pull one in from the Stash, or add a brand-new one") into one
+  list with an auto-expand side effect — approved as a deliberate
+  simplification before implementing. The New Pattern modal gained the
+  same picker, scoped to the project's yarn and defaulting to all-checked.
+- Removed the old `select-palette-color`/`remove-palette-color`/
+  `add-palette-color` actions and the now-dead "remove swatch" (`.rm`) CSS;
+  the guide bar's per-color breakdown now looks up a yarn's name from
+  `db.yarnStash` by hex instead of the removed `project.palette`.
+- `.modal` can now scroll (`max-height:calc(100vh - 32px); overflow:auto`)
+  since the new pattern/yarn-picker modals can get taller than a phone
+  viewport.
+- Also folded in from user feedback on the third UX pass: Delete Project
+  is now an icon-only trash button (was a labeled danger button); the pan
+  tool's hand icon (looked odd) is now a standard 4-way move/cross-arrow;
+  the stitch guide shows a "Resuming where you left off" note and "Revert
+  to beginning" button when it resumes a saved non-zero position
+  (`state.guideResumed`, `guide-revert` action).
+- Landed as three sequential commits (data layer + Stash screen; Project
+  Yarn; Pattern Yarn/toolbar) per the approved plan, but not pushed/live
+  until all three were done — the app was genuinely broken for new
+  projects in the intermediate state (toolbar/guide code still read the
+  no-longer-seeded `project.palette`).
+- Not verified live in a browser this session — see To Do above for the
+  specific end-to-end flows to check.
 
 ### 2026-09-12 (third UX pass: stitch direction, guide auto-center/resume, gesture zoom, header/rename cleanup)
 - **Stitch direction**: new Pattern Settings field (Horizontal/Vertical).
