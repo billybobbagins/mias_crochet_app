@@ -775,6 +775,52 @@
     setTimeout(function(){ var el=document.getElementById('yarn-name'); if(el) el.focus(); },0);
   }
 
+  function yarnChecklistHtml(checkedIds, pool){
+    pool = pool || db.yarnStash;
+    if(!pool.length){
+      return '<div class="hint" style="margin-bottom:10px;">No yarn available yet — add one below.</div>';
+    }
+    var html = '<div class="yarn-checklist">';
+    pool.slice().sort(function(a,b){ return a.name.localeCompare(b.name); }).forEach(function(y){
+      var checked = checkedIds.indexOf(y.id)!==-1;
+      var meta = yarnMetaLine(y);
+      html += '<label class="yarn-check-row"><input type="checkbox" data-yarn-check="'+y.id+'"'+(checked?' checked':'')+'>';
+      html += '<span class="swatch" style="background:'+y.hex+';"></span>';
+      html += '<span class="name">'+escapeHtml(y.name)+'</span>';
+      if(meta) html += '<span class="meta">'+escapeHtml(meta)+'</span>';
+      html += '</label>';
+    });
+    html += '</div>';
+    return html;
+  }
+  function readCheckedYarnIds(root){
+    var boxes = root.querySelectorAll('[data-yarn-check]');
+    var ids = [];
+    for(var i=0;i<boxes.length;i++){ if(boxes[i].checked) ids.push(boxes[i].getAttribute('data-yarn-check')); }
+    return ids;
+  }
+  function quickAddYarnRowHtml(containerId, hexId, nameId, extraAttrs){
+    var html = '<div class="add-color-row" style="margin-top:8px;">';
+    html += '<input type="color" id="'+hexId+'" value="#d97a5f">';
+    html += '<input type="text" id="'+nameId+'" placeholder="New yarn name">';
+    html += '<button class="btn btn-sm" data-action="quick-add-yarn-to-list" data-container="'+containerId+'" data-hexid="'+hexId+'" data-nameid="'+nameId+'"'+(extraAttrs||'')+'>+ Add</button>';
+    html += '</div>';
+    return html;
+  }
+
+  function openProjectYarnModal(){
+    var project = getProject(state.projectId);
+    if(!project) return;
+    var html = '<div class="modal">';
+    html += '<h3>Project Yarn</h3>';
+    html += '<div class="hint" style="margin-bottom:10px;">Choose which yarn from your Stash this project uses.</div>';
+    html += '<div id="project-yarn-checklist">'+yarnChecklistHtml(project.yarnIds||[])+'</div>';
+    html += quickAddYarnRowHtml('project-yarn-checklist','py-new-hex','py-new-name');
+    html += '<div class="modal-actions"><button class="btn" data-action="modal-cancel">Cancel</button><button class="btn btn-primary" data-action="save-project-yarn">Save</button></div>';
+    html += '</div>';
+    openModal(html);
+  }
+
   function renderProjectView(){
     var project = getProject(state.projectId);
     if(!project){ state.view='home'; return renderHome(); }
@@ -785,6 +831,7 @@
 
     html += '<div class="project-title-row"><h2>'+escapeHtml(project.name)+' <button class="icon-btn-inline" data-action="rename-project" data-id="'+project.id+'" title="Rename">'+ICONS.pencil+'</button></h2>';
     html += '<div class="title-actions">';
+    html += '<button class="btn btn-sm" data-action="open-project-yarn">🧶 Project Yarn</button>';
     html += '<button class="icon-btn icon-btn-danger" data-action="delete-project" data-id="'+project.id+'" title="Delete Project">'+ICONS.trash+'</button>';
     html += '</div></div>';
 
@@ -1059,6 +1106,10 @@
     var html = '<div class="modal">';
     html += '<h3>New Project</h3>';
     html += '<div class="field"><label>Project name</label><input type="text" id="modal-project-name" placeholder="e.g. Mia\'s Blanket" autofocus></div>';
+    html += '<div class="field"><label>Yarn for this project</label>';
+    html += '<div id="new-project-yarn-checklist">'+yarnChecklistHtml([])+'</div>';
+    html += quickAddYarnRowHtml('new-project-yarn-checklist','npy-new-hex','npy-new-name');
+    html += '</div>';
     html += '<div class="modal-actions"><button class="btn" data-action="modal-cancel">Cancel</button><button class="btn btn-primary" data-action="modal-create-project">Create</button></div>';
     html += '</div>';
     openModal(html);
@@ -1066,11 +1117,19 @@
   }
 
   function openNewPatternModal(){
+    var project = getProject(state.projectId);
+    var projectYarn = project ? db.yarnStash.filter(function(y){ return (project.yarnIds||[]).indexOf(y.id)!==-1; }) : [];
+    var allIds = projectYarn.map(function(y){ return y.id; });
     var html = '<div class="modal">';
     html += '<h3>New Pattern</h3>';
     html += '<div class="field"><label>Pattern name</label><input type="text" id="modal-pattern-name" placeholder="e.g. Front Panel" autofocus></div>';
     html += '<div class="field-row"><div class="field"><label>Rows</label><input type="number" id="modal-pattern-rows" min="1" max="100" value="20"></div>';
     html += '<div class="field"><label>Columns</label><input type="number" id="modal-pattern-cols" min="1" max="100" value="20"></div></div>';
+    html += '<div class="field"><label>Yarn for this pattern</label>';
+    html += '<div id="new-pattern-yarn-checklist">'+yarnChecklistHtml(allIds, projectYarn)+'</div>';
+    html += quickAddYarnRowHtml('new-pattern-yarn-checklist','npty-new-hex','npty-new-name',
+      project ? ' data-cascade-project="'+project.id+'" data-scope-project="'+project.id+'"' : '');
+    html += '</div>';
     html += '<div class="modal-actions"><button class="btn" data-action="modal-cancel">Cancel</button><button class="btn btn-primary" data-action="modal-create-pattern">Create</button></div>';
     html += '</div>';
     openModal(html);
@@ -1181,8 +1240,10 @@
       case 'modal-create-project': {
         var nameEl = document.getElementById('modal-project-name');
         var name = nameEl ? nameEl.value.trim() : '';
+        var npyContainer = document.getElementById('new-project-yarn-checklist');
+        var npYarnIds = npyContainer ? readCheckedYarnIds(npyContainer) : [];
         closeModal();
-        newProject(name);
+        newProject(name, npYarnIds);
         break;
       }
       case 'modal-create-pattern': {
@@ -1191,8 +1252,10 @@
         var n = document.getElementById('modal-pattern-name').value.trim();
         var r = document.getElementById('modal-pattern-rows').value;
         var c = document.getElementById('modal-pattern-cols').value;
+        var nptyContainer = document.getElementById('new-pattern-yarn-checklist');
+        var nptYarnIds = nptyContainer ? readCheckedYarnIds(nptyContainer) : null;
         closeModal();
-        newPattern(project, n, r, c);
+        newPattern(project, n, r, c, nptYarnIds);
         break;
       }
       case 'open-project': {
@@ -1276,6 +1339,54 @@
         var rmVal = t.getAttribute('data-value');
         db.yarnPresets[rmCat] = (db.yarnPresets[rmCat]||[]).filter(function(o){ return o!==rmVal; });
         savePresetsDoc(db.yarnPresets);
+        render();
+        break;
+      }
+      case 'quick-add-yarn-to-list': {
+        var hexEl2 = document.getElementById(t.getAttribute('data-hexid'));
+        var nameEl5 = document.getElementById(t.getAttribute('data-nameid'));
+        var qname = nameEl5.value.trim();
+        if(!qname) break;
+        var qy = {
+          id: uid(), name: qname, hex: hexEl2.value,
+          brand: null, material: null, size: null, hookSize: null,
+          createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+        };
+        db.yarnStash.push(qy);
+        saveYarnDoc(qy);
+        var cascadeProjectId = t.getAttribute('data-cascade-project');
+        var scopeProjectId = t.getAttribute('data-scope-project');
+        if(cascadeProjectId){
+          var cp = getProject(cascadeProjectId);
+          if(cp){ cp.yarnIds = (cp.yarnIds||[]).concat([qy.id]); saveProjectDoc(cp); }
+        }
+        var pool = db.yarnStash;
+        if(scopeProjectId){
+          var sp = getProject(scopeProjectId);
+          if(sp) pool = db.yarnStash.filter(function(y){ return (sp.yarnIds||[]).indexOf(y.id)!==-1; });
+        }
+        var listContainer = document.getElementById(t.getAttribute('data-container'));
+        var currentIds = readCheckedYarnIds(listContainer);
+        currentIds.push(qy.id);
+        listContainer.innerHTML = yarnChecklistHtml(currentIds, pool);
+        nameEl5.value = '';
+        break;
+      }
+      case 'open-project-yarn': openProjectYarnModal(); break;
+      case 'save-project-yarn': {
+        var spProj = getProject(state.projectId);
+        if(!spProj) break;
+        var pyContainer = document.getElementById('project-yarn-checklist');
+        var newYarnIds = readCheckedYarnIds(pyContainer);
+        spProj.yarnIds = newYarnIds;
+        touch(spProj); persist(spProj);
+        spProj.patterns.forEach(function(pt){
+          if(pt.yarnIds){
+            var filtered = pt.yarnIds.filter(function(id){ return newYarnIds.indexOf(id)!==-1; });
+            if(filtered.length !== pt.yarnIds.length){ pt.yarnIds = filtered; savePatternDoc(spProj, pt); }
+          }
+        });
+        closeModal();
         render();
         break;
       }
