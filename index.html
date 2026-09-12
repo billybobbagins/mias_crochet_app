@@ -23,7 +23,9 @@
     --danger:#c85c5c;
     --shadow:0 2px 8px rgba(90,60,40,.08), 0 1px 2px rgba(90,60,40,.06);
     --radius:16px;
-    --cell-blank-bg: repeating-conic-gradient(#f3ede2 0% 25%, #ece3d4 0% 50%) 50% / 10px 10px;
+    --grid-line:#d9d9d9;
+    --grid-label-bg:#f0f0f0;
+    --cell-blank-bg: repeating-conic-gradient(#ffffff 0% 25%, #ececec 0% 50%) 50% / 10px 10px;
   }
   @media (prefers-color-scheme: dark){
     :root{
@@ -39,7 +41,9 @@
       --sage-ink:#132013;
       --danger:#e18080;
       --shadow:0 2px 10px rgba(0,0,0,.35);
-      --cell-blank-bg: repeating-conic-gradient(#3a3128 0% 25%, #342c24 0% 50%) 50% / 10px 10px;
+      --grid-line:#454545;
+      --grid-label-bg:#2b2b2b;
+      --cell-blank-bg: repeating-conic-gradient(#262626 0% 25%, #2e2e2e 0% 50%) 50% / 10px 10px;
     }
   }
   *{box-sizing:border-box;}
@@ -53,16 +57,15 @@
   button{font-family:inherit;}
   h1,h2,h3{font-weight:800;margin:0;}
   .app-header{
-    padding:18px 20px;
+    padding:10px 20px;
     background:var(--bg-alt);
     border-bottom:1px solid var(--border);
     display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
   }
   .brand{display:flex;align-items:center;gap:10px;}
-  .brand .logo{font-size:32px;}
-  .brand h1{font-size:22px;}
-  .brand p{margin:0;color:var(--ink-soft);font-size:13px;}
-  main{max-width:1200px;margin:0 auto;padding:20px;}
+  .brand .logo{font-size:24px;}
+  .brand h1{font-size:18px;}
+  main{max-width:1600px;margin:0 auto;padding:20px;}
   .btn{
     display:inline-flex;align-items:center;gap:6px;
     padding:9px 16px;border-radius:999px;border:1px solid var(--border);
@@ -126,20 +129,31 @@
   .pattern-header h3{font-size:20px;}
   .pattern-header .actions{display:flex;gap:8px;flex-wrap:wrap;}
   .pattern-layout{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;}
-  .sidebar{
-    width:270px;flex-shrink:0;display:flex;flex-direction:column;gap:14px;
-  }
-  .panel{
+
+  .toolbar{
+    display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;
     background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
-    padding:14px;box-shadow:var(--shadow);
+    padding:10px 12px;box-shadow:var(--shadow);
   }
-  .panel h4{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:10px;}
-  .tool-row{display:flex;gap:6px;flex-wrap:wrap;}
-  .tool-btn{
-    flex:1;padding:9px 6px;border-radius:10px;border:1px solid var(--border);background:var(--bg-alt);
-    cursor:pointer;font-size:13px;font-weight:700;text-align:center;color:var(--ink);
+  .toolbar-group{display:flex;align-items:center;gap:6px;}
+  .toolbar-sep{width:1px;align-self:stretch;background:var(--border);}
+  .icon-btn{
+    width:36px;height:36px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;
+    border-radius:10px;border:1px solid var(--border);background:var(--bg-alt);cursor:pointer;color:var(--ink);padding:0;
   }
-  .tool-btn.active{background:var(--accent);color:var(--accent-ink);border-color:transparent;}
+  .icon-btn svg{width:18px;height:18px;}
+  .icon-btn.active{background:var(--accent);color:var(--accent-ink);border-color:transparent;}
+  .icon-btn[disabled]{opacity:.4;cursor:not-allowed;}
+  .color-btn{width:36px;height:36px;flex-shrink:0;border-radius:10px;border:2px solid var(--border);cursor:pointer;padding:0;}
+  .dropdown-wrap{position:relative;}
+  .dropdown-panel{
+    position:absolute;top:calc(100% + 8px);left:0;z-index:40;
+    background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+    box-shadow:0 12px 30px rgba(0,0,0,.18);padding:14px;min-width:240px;
+  }
+  .dropdown-panel.right{left:auto;right:0;}
+  .dropdown-toggle{display:inline-flex;align-items:center;gap:6px;}
+  .dropdown-toggle svg{width:14px;height:14px;}
   .palette-grid{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
   .palette-swatch{
     position:relative;width:34px;height:34px;border-radius:9px;border:2px solid var(--border);cursor:pointer;
@@ -155,8 +169,6 @@
     flex:1;min-width:0;padding:7px 9px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--ink);font-size:13px;
   }
   .add-color-row input[type=color]{width:34px;height:34px;padding:0;border:1px solid var(--border);border-radius:8px;background:none;cursor:pointer;}
-  .active-color-preview{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
-  .active-color-preview .swatch-big{width:40px;height:40px;border-radius:10px;border:2px solid var(--border);}
   .field{margin-bottom:10px;}
   .field label{display:block;font-size:12.5px;color:var(--ink-soft);margin-bottom:4px;font-weight:700;}
   .field select, .field input[type=number]{
@@ -169,15 +181,20 @@
   .range-row .val{font-size:12px;color:var(--ink-soft);width:38px;text-align:right;}
 
   .grid-scroll{overflow:auto;max-width:100%;padding:6px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);}
-  .grid-wrapper{display:grid;gap:1px;background:var(--border);width:max-content;user-select:none;touch-action:none;}
-  .corner{background:var(--card);}
+  .grid-wrapper{
+    display:grid;gap:0;width:max-content;user-select:none;touch-action:none;
+    border-top:1px solid var(--grid-line);border-left:1px solid var(--grid-line);
+  }
+  .grid-wrapper.pan-mode{touch-action:pan-x pan-y;}
+  .corner{background:var(--card);border-right:1px solid var(--grid-line);border-bottom:1px solid var(--grid-line);}
   .lbl{
-    background:var(--bg-alt);display:flex;align-items:center;justify-content:center;
+    background:var(--grid-label-bg);display:flex;align-items:center;justify-content:center;
     font-size:11px;font-weight:700;color:var(--ink-soft);
+    border-right:1px solid var(--grid-line);border-bottom:1px solid var(--grid-line);
   }
   .lbl-hi{color:var(--accent-ink);background:var(--accent);font-weight:800;}
   .lbl.row-current{outline:2px solid var(--sage);outline-offset:-2px;}
-  .cell{background:#fff;cursor:pointer;}
+  .cell{background:#fff;cursor:pointer;border-right:1px solid var(--grid-line);border-bottom:1px solid var(--grid-line);}
   .cell.cell-blank{background:var(--cell-blank-bg);}
   .pattern-mode-view .cell{cursor:default;}
   .cell.row-dim{opacity:.35;}
@@ -208,8 +225,6 @@
   a{color:var(--accent);}
 
   @media (max-width:720px){
-    .pattern-layout{flex-direction:column;}
-    .sidebar{width:100%;}
     .guide-breakdown{margin-left:0;width:100%;}
   }
 </style>
@@ -258,6 +273,19 @@
       return d.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});
     }catch(e){ return ''; }
   }
+
+  /* ---------- icons (inline SVG, monochrome via currentColor) ---------- */
+  var ICON_SVG_ATTRS = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
+  var ICONS = {
+    undo: '<svg '+ICON_SVG_ATTRS+'><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5A5.5 5.5 0 0 1 20 14.5v0A5.5 5.5 0 0 1 14.5 20H11"/></svg>',
+    redo: '<svg '+ICON_SVG_ATTRS+'><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v0A5.5 5.5 0 0 0 9.5 20H13"/></svg>',
+    paint: '<svg '+ICON_SVG_ATTRS+'><path d="M9 15c-3 0-5 2-5 5 3 0 5-1 5-3"/><path d="M9 15 19 5a2.1 2.1 0 0 1 3 3L12 18l-3-3z"/></svg>',
+    bucket: '<svg '+ICON_SVG_ATTRS+'><path d="m2 12 9-9 9 9-9 9-9-9z"/><path d="M11 3v9"/><path d="M20 17c0 1.7-1.3 3-3 3s-3-1.3-3-3c0-1.5 3-5 3-5s3 3.5 3 5z"/></svg>',
+    erase: '<svg '+ICON_SVG_ATTRS+'><path d="M20 20H9l-6-6a2 2 0 0 1 0-2.8L12.2 2a2 2 0 0 1 2.8 0l6 6a2 2 0 0 1 0 2.8L14 18"/><path d="M6 12l6 6"/></svg>',
+    pan: '<svg '+ICON_SVG_ATTRS+'><path d="M13 3v9m0 0V6a1.5 1.5 0 0 1 3 0v6m-3 0V8a1.5 1.5 0 0 1 3 0m-6 4V6a1.5 1.5 0 0 0-3 0v9"/><path d="M7 11v3a7 7 0 0 0 7 7h1a6 6 0 0 0 6-6v-3"/></svg>',
+    gear: '<svg '+ICON_SVG_ATTRS+'><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+    chevronDown: '<svg '+ICON_SVG_ATTRS+'><path d="m6 9 6 6 6-6"/></svg>'
+  };
 
   /* ---------- data layer (Firestore) ---------- */
   function defaultPalette(){
@@ -408,12 +436,27 @@
     patternId:null,
     patternMode:'view',     // 'view' | 'edit'
     activeColor:'#d97a5f',
-    activeTool:'paint',     // 'paint' | 'bucket' | 'erase'
+    activeTool:'paint',     // 'paint' | 'bucket' | 'erase' | 'pan'
     guideActive:false,
     guidePos:0,
     isPainting:false,
-    paintingButton:null
+    paintingButton:null,
+    colorPickerOpen:false,
+    gridSettingsOpen:false,
+    undoStack:[],
+    redoStack:[],
+    strokeSnapshot:null
   };
+
+  function pushUndoSnapshot(pattern){
+    state.undoStack.push(JSON.parse(JSON.stringify(pattern.cells)));
+    if(state.undoStack.length>50) state.undoStack.shift();
+    state.redoStack = [];
+  }
+  function resetUndoHistory(){
+    state.undoStack = [];
+    state.redoStack = [];
+  }
 
   function getProject(id){ return db.projects.find(function(p){ return p.id===id; }); }
   function getPattern(project, id){ return project ? project.patterns.find(function(p){ return p.id===id; }) : null; }
@@ -480,7 +523,7 @@
 
   function renderHome(){
     var html = '';
-    html += '<div class="app-header"><div class="brand"><div class="logo">🧶</div><div><h1>Mia\'s Crochet Patterns</h1><p>Design graphgan charts &amp; follow along stitch by stitch</p></div></div>';
+    html += '<div class="app-header"><div class="brand"><div class="logo">🧶</div><div><h1>Mia\'s Crochet Patterns</h1></div></div>';
     html += '<div style="display:flex;gap:8px;">';
     html += '<button class="btn btn-icon" data-action="backup" title="Download a backup of all your data">⬇ Backup</button>';
     html += '<button class="btn btn-icon" data-action="restore" title="Restore from a backup file">⬆ Restore</button>';
@@ -515,7 +558,7 @@
     var project = getProject(state.projectId);
     if(!project){ state.view='home'; return renderHome(); }
     var html = '';
-    html += '<div class="app-header"><div class="brand"><div class="logo">🧶</div><div><h1>Mia\'s Crochet Patterns</h1><p>Design graphgan charts &amp; follow along stitch by stitch</p></div></div>';
+    html += '<div class="app-header"><div class="brand"><div class="logo">🧶</div><div><h1>Mia\'s Crochet Patterns</h1></div></div>';
     html += '<button class="btn" data-action="go-home">← All Projects</button></div>';
     html += '<main>';
 
@@ -567,10 +610,11 @@
 
     if(!editing){
       html += renderGuideBar(project, pattern);
+    } else {
+      html += renderToolbar(project, pattern);
     }
 
     html += '<div class="pattern-layout pattern-mode-'+(editing?'edit':'view')+'">';
-    if(editing) html += renderSidebar(project, pattern);
     html += '<div class="grid-scroll">'+renderGrid(project, pattern, editing)+'</div>';
     html += '</div>';
     return html;
@@ -611,39 +655,8 @@
     return html;
   }
 
-  function renderSidebar(project, pattern){
-    var html = '<div class="sidebar">';
-
-    // Tools
-    html += '<div class="panel"><h4>Tools</h4>';
-    html += '<div class="active-color-preview"><div class="swatch-big" style="background:'+state.activeColor+'"></div>';
-    html += '<input type="color" data-action="set-active-color" value="'+state.activeColor+'" title="Pick a custom color">';
-    html += '<span class="hint">Active color</span></div>';
-    html += '<div class="tool-row">';
-    ['paint','bucket','erase'].forEach(function(t){
-      var labels = {paint:'🖌️ Paint', bucket:'🪣 Fill', erase:'🧽 Erase'};
-      html += '<button class="tool-btn'+(state.activeTool===t?' active':'')+'" data-action="set-tool" data-tool="'+t+'">'+labels[t]+'</button>';
-    });
-    html += '</div>';
-    html += '<div style="margin-top:10px;"><button class="btn btn-sm btn-danger" data-action="clear-grid" style="width:100%;">Clear Whole Grid</button></div>';
-    html += '</div>';
-
-    // Palette
-    html += '<div class="panel"><h4>Project Palette</h4><div class="palette-grid">';
-    project.palette.forEach(function(c){
-      var sel = state.activeColor.toLowerCase() === c.hex.toLowerCase();
-      html += '<div class="palette-swatch'+(sel?' selected':'')+'" style="background:'+c.hex+'" data-action="select-palette-color" data-hex="'+c.hex+'" title="'+escapeHtml(c.name)+'">';
-      html += '<div class="rm" data-action="remove-palette-color" data-id="'+c.id+'" title="Remove from palette">×</div></div>';
-    });
-    html += '</div>';
-    html += '<div class="add-color-row">';
-    html += '<input type="color" id="new-color-hex" value="#d97a5f">';
-    html += '<input type="text" id="new-color-name" placeholder="Color name">';
-    html += '<button class="btn btn-sm btn-primary" data-action="add-palette-color">Add</button>';
-    html += '</div></div>';
-
-    // Grid settings
-    html += '<div class="panel"><h4>Grid Settings</h4>';
+  function gridSettingsFieldsHtml(pattern){
+    var html = '';
     html += '<div class="field-row"><div class="field"><label>Rows</label><input type="number" id="resize-rows" min="1" max="100" value="'+pattern.rows+'"></div>';
     html += '<div class="field"><label>Columns</label><input type="number" id="resize-cols" min="1" max="100" value="'+pattern.cols+'"></div></div>';
     html += '<button class="btn btn-sm" data-action="resize-grid" style="width:100%;margin-bottom:12px;">Resize Grid</button>';
@@ -670,6 +683,52 @@
 
     html += '<div class="field"><label>Cell size</label><div class="range-row"><input type="range" min="10" max="44" value="'+pattern.cellSize+'" data-action="set-cellsize"><span class="val">'+pattern.cellSize+'px</span></div></div>';
     html += '<div class="field"><label>Cell width (stitch shape)</label><div class="range-row"><input type="range" min="50" max="200" value="'+Math.round(pattern.aspect*100)+'" data-action="set-aspect"><span class="val">'+Math.round(pattern.aspect*100)+'%</span></div></div>';
+    return html;
+  }
+
+  function renderToolbar(project, pattern){
+    var html = '<div class="toolbar">';
+
+    html += '<div class="toolbar-group">';
+    html += '<button class="icon-btn" data-action="undo" title="Undo"'+(state.undoStack.length?'':' disabled')+'>'+ICONS.undo+'</button>';
+    html += '<button class="icon-btn" data-action="redo" title="Redo"'+(state.redoStack.length?'':' disabled')+'>'+ICONS.redo+'</button>';
+    html += '</div><div class="toolbar-sep"></div>';
+
+    html += '<div class="toolbar-group">';
+    var tools = [['paint',ICONS.paint,'Paint'],['bucket',ICONS.bucket,'Fill'],['erase',ICONS.erase,'Erase'],['pan',ICONS.pan,'Pan / Scroll']];
+    tools.forEach(function(tt){
+      html += '<button class="icon-btn'+(state.activeTool===tt[0]?' active':'')+'" data-action="set-tool" data-tool="'+tt[0]+'" title="'+tt[2]+'">'+tt[1]+'</button>';
+    });
+    html += '</div><div class="toolbar-sep"></div>';
+
+    html += '<div class="toolbar-group dropdown-wrap">';
+    html += '<button class="color-btn" data-action="toggle-color-picker" style="background:'+state.activeColor+';" title="Active color / yarn palette"></button>';
+    if(state.colorPickerOpen){
+      html += '<div class="dropdown-panel">';
+      html += '<h4 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:8px;">Project Yarn Colors</h4>';
+      html += '<div class="palette-grid">';
+      project.palette.forEach(function(c){
+        var sel = state.activeColor.toLowerCase() === c.hex.toLowerCase();
+        html += '<div class="palette-swatch'+(sel?' selected':'')+'" style="background:'+c.hex+'" data-action="select-palette-color" data-hex="'+c.hex+'" title="'+escapeHtml(c.name)+'">';
+        html += '<div class="rm" data-action="remove-palette-color" data-id="'+c.id+'" title="Remove from palette">×</div></div>';
+      });
+      html += '</div>';
+      html += '<div class="add-color-row">';
+      html += '<input type="color" id="new-color-hex" value="#d97a5f">';
+      html += '<input type="text" id="new-color-name" placeholder="Color name">';
+      html += '<button class="btn btn-sm btn-primary" data-action="add-palette-color">Add</button>';
+      html += '</div>';
+      html += '</div>';
+    }
+    html += '</div><div class="toolbar-sep"></div>';
+
+    html += '<button class="btn btn-sm btn-danger" data-action="clear-grid">Clear Grid</button>';
+
+    html += '<div class="dropdown-wrap" style="margin-left:auto;">';
+    html += '<button class="btn btn-sm dropdown-toggle" data-action="toggle-grid-settings">'+ICONS.gear+' Grid Settings '+ICONS.chevronDown+'</button>';
+    if(state.gridSettingsOpen){
+      html += '<div class="dropdown-panel right">'+gridSettingsFieldsHtml(pattern)+'</div>';
+    }
     html += '</div>';
 
     html += '</div>';
@@ -688,7 +747,8 @@
     var colsTemplate = lblSize+'px repeat('+pattern.cols+', '+cellW+'px) '+lblSize+'px';
     var rowsTemplate = lblSize+'px repeat('+pattern.rows+', '+cellH+'px) '+lblSize+'px';
 
-    var html = '<div class="grid-wrapper" id="grid-wrapper" data-rows="'+pattern.rows+'" data-cols="'+pattern.cols+'" style="grid-template-columns:'+colsTemplate+';grid-template-rows:'+rowsTemplate+';">';
+    var panMode = editable && state.activeTool==='pan';
+    var html = '<div class="grid-wrapper'+(panMode?' pan-mode':'')+'" id="grid-wrapper" data-rows="'+pattern.rows+'" data-cols="'+pattern.cols+'" style="grid-template-columns:'+colsTemplate+';grid-template-rows:'+rowsTemplate+';">';
 
     // top row: corner + column labels + corner
     html += '<div class="corner"></div>';
@@ -791,6 +851,7 @@
     persist(project, pt);
     state.patternId = pt.id;
     state.patternMode = 'edit';
+    resetUndoHistory();
     render();
   }
 
@@ -798,6 +859,7 @@
     if(row<0||col<0||row>=pattern.rows||col>=pattern.cols) return;
     var color = state.activeTool === 'erase' ? null : state.activeColor;
     if(state.activeTool === 'bucket'){
+      pushUndoSnapshot(pattern);
       bucketFill(pattern, row, col, color);
       touch(project); persist(project, pattern); render();
       return;
@@ -817,6 +879,11 @@
 
   /* ================= EVENT WIRING ================= */
   document.addEventListener('click', function(e){
+    if((state.colorPickerOpen || state.gridSettingsOpen) && !e.target.closest('.dropdown-wrap')){
+      state.colorPickerOpen = false;
+      state.gridSettingsOpen = false;
+      render();
+    }
     var t = e.target.closest('[data-action]');
     if(!t) return;
     var action = t.getAttribute('data-action');
@@ -872,6 +939,7 @@
         state.patternId = t.getAttribute('data-id');
         state.patternMode = 'view';
         state.guideActive = false;
+        resetUndoHistory();
         render();
         break;
       }
@@ -895,6 +963,7 @@
         pr2.patterns.push(copy);
         touch(pr2); persist(pr2, copy);
         state.patternId = copy.id;
+        resetUndoHistory();
         render();
         break;
       }
@@ -913,12 +982,45 @@
       case 'toggle-mode': {
         state.patternMode = state.patternMode==='edit' ? 'view' : 'edit';
         state.guideActive = false;
+        state.colorPickerOpen = false;
+        state.gridSettingsOpen = false;
         render();
         break;
       }
       case 'set-tool': state.activeTool = t.getAttribute('data-tool'); render(); break;
+      case 'toggle-color-picker': {
+        state.colorPickerOpen = !state.colorPickerOpen;
+        state.gridSettingsOpen = false;
+        render();
+        break;
+      }
+      case 'toggle-grid-settings': {
+        state.gridSettingsOpen = !state.gridSettingsOpen;
+        state.colorPickerOpen = false;
+        render();
+        break;
+      }
+      case 'undo': {
+        var undoProj = getProject(state.projectId);
+        var undoPat = getPattern(undoProj, state.patternId);
+        if(!undoPat || !state.undoStack.length) break;
+        state.redoStack.push(JSON.parse(JSON.stringify(undoPat.cells)));
+        undoPat.cells = state.undoStack.pop();
+        touch(undoProj); persist(undoProj, undoPat); render();
+        break;
+      }
+      case 'redo': {
+        var redoProj = getProject(state.projectId);
+        var redoPat = getPattern(redoProj, state.patternId);
+        if(!redoPat || !state.redoStack.length) break;
+        state.undoStack.push(JSON.parse(JSON.stringify(redoPat.cells)));
+        redoPat.cells = state.redoStack.pop();
+        touch(redoProj); persist(redoProj, redoPat); render();
+        break;
+      }
       case 'select-palette-color': {
         state.activeColor = t.getAttribute('data-hex');
+        state.colorPickerOpen = false;
         render();
         break;
       }
@@ -941,6 +1043,7 @@
         prj2.palette.push({id:uid(), hex:hex, name:cname});
         touch(prj2); persist(prj2);
         state.activeColor = hex;
+        state.colorPickerOpen = false;
         render();
         break;
       }
@@ -948,7 +1051,8 @@
         var prj3 = getProject(state.projectId);
         var pat = getPattern(prj3, state.patternId);
         if(!pat) break;
-        if(confirm('Clear the entire grid? This cannot be undone.')){
+        if(confirm('Clear the entire grid? (You can Undo this afterward.)')){
+          pushUndoSnapshot(pat);
           pat.cells = blankCells(pat.rows, pat.cols);
           touch(prj3); persist(prj3, pat); render();
         }
@@ -995,8 +1099,7 @@
     var t = e.target.closest('[data-action]');
     if(!t) return;
     var action = t.getAttribute('data-action');
-    if(action==='set-active-color'){ state.activeColor = t.value; render(); }
-    else if(action==='set-numbering'){
+    if(action==='set-numbering'){
       var prj = getProject(state.projectId);
       var pat = getPattern(prj, state.patternId);
       if(!pat) return;
@@ -1024,11 +1127,15 @@
     var cell = e.target.closest('.cell');
     if(!cell) return;
     if(state.patternMode !== 'edit') return;
+    if(state.activeTool === 'pan') return;
     var project = getProject(state.projectId);
     var pattern = getPattern(project, state.patternId);
     if(!pattern) return;
     e.preventDefault();
     state.isPainting = true;
+    if(state.activeTool !== 'bucket'){
+      state.strokeSnapshot = JSON.parse(JSON.stringify(pattern.cells));
+    }
     paintCell(project, pattern, parseInt(cell.getAttribute('data-row'),10), parseInt(cell.getAttribute('data-col'),10));
   });
   document.addEventListener('pointermove', function(e){
@@ -1046,7 +1153,13 @@
       state.isPainting = false;
       var project = getProject(state.projectId);
       var pattern = getPattern(project, state.patternId);
-      if(project){ touch(project); persist(project, pattern); }
+      if(state.strokeSnapshot){
+        state.undoStack.push(state.strokeSnapshot);
+        if(state.undoStack.length>50) state.undoStack.shift();
+        state.redoStack = [];
+        state.strokeSnapshot = null;
+      }
+      if(project){ touch(project); persist(project, pattern); render(); }
     }
   }
   document.addEventListener('pointerup', endPaint);
