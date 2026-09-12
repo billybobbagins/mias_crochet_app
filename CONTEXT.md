@@ -78,6 +78,10 @@ single-`localStorage`-blob approach:
   flat color swatches).
 - Create / delete projects. Delete requires confirmation.
 - Refresh button (re-pulls the latest data from Firestore) and Log out.
+- In-app header just says "Crochet Projects" (no logo icon) so it and the
+  "← All Projects" back button fit on one line on a phone. No footer
+  disclaimer text anymore (removed — was leftover copy from the
+  `localStorage`-only era and no longer accurate).
 
 ### Projects
 - Each project has its own yarn palette ("Project Yarn"): add a yarn
@@ -89,9 +93,11 @@ single-`localStorage`-blob approach:
 - A project holds one or more patterns, shown as tabs.
 
 ### Patterns
-- Create / rename / duplicate / delete patterns within a project (rename,
-  duplicate, delete are icon buttons in the pattern header; Edit/Done Editing
-  are the two text buttons).
+- Create / rename / duplicate / delete patterns within a project. Rename is
+  a small pencil icon right next to the pattern name heading (same for
+  project names, next to the project heading); Duplicate/Delete are icon
+  buttons in the header actions row; Edit/Done Editing are the two text
+  buttons there.
 - Configurable grid size (1–100 rows × 1–100 cols), resizable via Pattern
   Settings (shrinking prompts a confirmation since it discards out-of-bounds
   cells).
@@ -104,6 +110,9 @@ single-`localStorage`-blob approach:
   are conventionally read). Highlighted label chips are neutral grey, not
   the app's orange accent, so they don't compete visually with painted yarn
   colors.
+- Stitch direction (horizontal = step row-by-row, vertical = step
+  column-by-column) is a Pattern Settings field that controls how the
+  stitch guide steps through the pattern — see Stitch guide below.
 
 ### Pattern editor ("Edit" mode)
 - Two-row toolbar above the grid: Row 1 = Undo/Redo · Paint/Fill/Erase ·
@@ -138,13 +147,37 @@ single-`localStorage`-blob approach:
 - Pointer-based painting supporting mouse and touch, including drag-to-paint
   across multiple cells (except when Pan is the active tool).
 - "Clear Grid" action (with confirmation, undoable afterward).
+- **Zoom gestures**: two-finger pinch on the grid (touch) and plain
+  mouse-wheel/trackpad scroll while hovering the grid (desktop) both zoom
+  cell size in/out, on top of the toolbar Zoom −/+ buttons. Wheel-over-grid
+  intentionally replaces page-scroll-by-wheel there — use the scrollbars,
+  trackpad drag, or the Pan tool to move around once zoomed in on desktop.
+  Untested on a real device as of this writing — flag anything that feels
+  off (accidental painting from a 2-finger touch, jumpy zoom, etc.).
 
 ### Stitch guide ("View" mode)
-- Toggleable guide bar that steps through rows one at a time (Prev/Next
-  buttons, arrow-key navigation).
-- Highlights the current row and dims the rest of the grid.
-- Shows a per-yarn stitch-count breakdown for the current row.
-- Respects the pattern's configured row-numbering direction.
+- Entry point moved: a "Start Stitch" button (arrow-right icon) now lives in
+  the pattern header's action row (next to Duplicate/Delete), replacing the
+  old bordered "Start Stitch Guide" box with subtext below the grid. Once
+  the guide is active, the Prev/Next/Stop bar still appears below the grid
+  as before.
+- Steps through the pattern one row or column at a time (Prev/Next buttons,
+  arrow-key navigation), depending on the pattern's Stitch direction setting
+  (horizontal = rows, vertical = columns).
+- Highlights the current row/column and dims the rest of the grid.
+- Shows a per-yarn stitch-count breakdown for the current row/column.
+- Respects the pattern's configured numbering direction.
+- Auto-centers the highlighted row/column in the viewport on every Prev/Next
+  step or arrow-key press.
+- Resumes where you left off: your position is saved per pattern
+  (`pattern.guidePos` in Firestore) every time you step, so closing the app
+  mid-pattern and reopening the guide later picks back up at the same spot.
+  Position resets to the start if you change the Stitch direction setting.
+- The grid can be panned/scrolled and zoomed in view mode the same as in
+  edit mode (previously view mode blocked all touch panning — a real bug,
+  not by design — since it always had `touch-action:none` set even outside
+  the Pan tool; fixed by only disabling native touch handling in edit mode
+  when a paint tool, not Pan, is selected).
 
 ### Login
 - Full-screen passcode gate before the app loads, with a small account
@@ -184,11 +217,32 @@ ones as they come up. Nothing here is committed to until we discuss it.
       landscape, Pattern Settings Save/Cancel/discard-prompt and its
       undo/redo, pattern rename undo, Refresh pulling fresh data, and each
       login account seeing separate projects.
+- [x] Third UX pass: stitch direction setting (horizontal/vertical) driving
+      the stitch guide's step axis, auto-centering the highlighted
+      row/column in the viewport while guiding, per-pattern saved guide
+      position (resume where you left off), pinch-to-zoom (touch) and
+      wheel-to-zoom (desktop) on the grid, view-mode pan/scroll fix
+      (previously blocked by a stray `touch-action:none`), "Start Stitch"
+      moved into the pattern header actions and re-iconed, header simplified
+      to "Crochet Projects" with no logo, footer disclaimer removed,
+      project/pattern rename moved to a pencil icon next to each heading.
+- [ ] Real end-to-end test of the third UX pass, especially the parts Claude
+      could not verify live: pinch-to-zoom on an actual phone (does a
+      2-finger touch ever still trigger an accidental paint stroke on the
+      first finger before the second lands?), wheel-zoom over the grid on
+      desktop (does it still let you scroll the page normally everywhere
+      else?), stitch-guide auto-centering and resume-position across a
+      logout/reopen, and the vertical stitch direction's column highlighting.
 - [ ] **Yarn Stash system** (next planning pass): a proper yarn catalog
       (brand/color/material/size/recommended hook, with manageable preset
       dropdowns) plus "Project Yarn" (per-project subset) and "Pattern Yarn"
       (per-pattern subset) tiers, with creation-time prompts to pick or add
-      yarn at each level. Deliberately scoped out of the second UX pass —
+      yarn at each level (adding a custom yarn at the pattern level also adds
+      it to that project's Project Yarn; adding one at the project level
+      just adds it to the project). Project Yarn is managed from an option
+      in the project header; picking/adding yarn is prompted at project
+      creation (alongside the name) and at pattern creation (alongside
+      rows/cols). Deliberately scoped out of both UX passes so far —
       comparable in size to the whole toolbar rebuild on its own.
 - [ ] Broader "discard unsaved changes?" sweep beyond Pattern Settings
       (raised alongside the Yarn Stash notes — not yet scoped).
@@ -206,6 +260,56 @@ ones as they come up. Nothing here is committed to until we discuss it.
 - [ ] Commit with a clear message.
 
 ## Changelog
+
+### 2026-09-12 (third UX pass: stitch direction, guide auto-center/resume, gesture zoom, header/rename cleanup)
+- **Stitch direction**: new Pattern Settings field (Horizontal/Vertical).
+  Horizontal keeps today's behavior (guide steps row-by-row); Vertical steps
+  column-by-column instead, with the grid highlighting/dimming whole columns
+  rather than rows. Implemented via a generalized `getGuideOrder()` (picks
+  row or column order) and renamed the CSS/JS highlight classes from
+  `row-dim`/`row-current` to `line-dim`/`line-current` so they can apply to
+  either axis.
+- **Stitch guide auto-centers**: every Prev/Next step or arrow-key press
+  calls `scrollGuideIntoView()`, which finds the current highlighted label
+  chip and calls `scrollIntoView({block:'center', inline:'center'})`.
+- **Stitch guide resumes your position**: added `pattern.guidePos` (synced
+  to Firestore). Starting the guide now resumes from the saved position
+  instead of always row/column 1; every step re-saves it. Resets to 0 if you
+  change the Stitch direction setting (a saved row position isn't meaningful
+  once you're stepping through columns instead).
+- **Pinch-to-zoom (touch) and wheel-to-zoom (desktop)**: two-finger touch on
+  the grid adjusts cell size by the pinch distance ratio (tracked via
+  `state.touchPoints`/`state.pinch`, since pointer events don't bundle
+  multi-touch state); a plain mouse wheel or trackpad scroll while hovering
+  the grid also zooms, intentionally replacing page-scroll-by-wheel there.
+  If a paint stroke had already started on the first finger before a second
+  finger landed, it's rolled back rather than left as a stray single-cell
+  edit. This is the one part of this pass Claude could not test on a real
+  device — see To Do.
+- **Fixed a real (not cosmetic) bug**: view mode ("View"/stitch-guide mode)
+  had `touch-action:none` on the grid unconditionally, which blocks native
+  touch scrolling entirely — meaning panning never worked in view mode on
+  touch, regardless of any UI. Fixed by only disabling native touch handling
+  in edit mode when a paint tool (not Pan) is selected; view mode always
+  allows native pan now.
+- **"Start Stitch" relocated**: removed the old bordered "Start Stitch
+  Guide" box and its subtext under the grid; added a "Start Stitch" button
+  (new arrow-right icon, replacing the 🧶 emoji) into the pattern header's
+  action row, shown only when in view mode with the guide not yet active.
+  The active-guide Prev/Next/Stop bar is unchanged.
+- **Rename moved next to the heading**: project and pattern rename are now
+  a small inline pencil icon directly beside the `<h2>`/`<h3>` name, instead
+  of a separate button grouped with Delete/Duplicate/Edit.
+- **Header simplified further**: the in-app header (Home/Project views) now
+  just reads "Crochet Projects" with no logo icon, so it and the "← All
+  Projects" back button fit on one line on a phone. (The login screen's
+  "Mia's Crochet Patterns" branding is unchanged — this only affects the
+  persistent in-app header.)
+- **Footer disclaimer removed** ("Your patterns are stored locally in this
+  browser...") — stale copy from before the Firebase migration.
+- Not verified live in a browser this session, and the gesture-handling
+  code (pinch/wheel zoom) specifically has no automated test coverage —
+  please exercise it for real before trusting it, especially on the phone.
 
 ### 2026-09-12 (second UX pass: zoom/pan rework, settings save/undo, terminology, multi-login, cleanup)
 - **Grid label color**: highlighted row/column number chips (`.lbl-hi`) now

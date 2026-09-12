@@ -67,7 +67,6 @@
     display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
   }
   .brand{display:flex;align-items:center;gap:10px;}
-  .brand .logo{font-size:24px;}
   .brand h1{font-size:18px;}
   main{max-width:1600px;margin:0 auto;padding:20px;}
   .btn{
@@ -148,6 +147,13 @@
   .icon-btn.active{background:var(--accent);color:var(--accent-ink);border-color:transparent;}
   .icon-btn[disabled]{opacity:.4;cursor:not-allowed;}
   .icon-btn-danger{color:var(--danger);border-color:var(--danger);}
+  .icon-btn-inline{
+    width:22px;height:22px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;
+    border-radius:6px;border:none;background:transparent;cursor:pointer;color:var(--ink-soft);padding:0;
+    vertical-align:middle;
+  }
+  .icon-btn-inline:hover{color:var(--ink);background:var(--bg-alt);}
+  .icon-btn-inline svg{width:14px;height:14px;}
   .color-btn{width:36px;height:36px;flex-shrink:0;border-radius:10px;border:2px solid var(--border);cursor:pointer;padding:0;}
   .dropdown-wrap{position:relative;}
   .dropdown-panel{
@@ -194,12 +200,12 @@
     border-right:1px solid var(--grid-line);border-bottom:1px solid var(--grid-line);
   }
   .lbl-hi{color:var(--grid-label-hi-ink);background:var(--grid-label-hi-bg);font-weight:800;}
-  .lbl.row-current{outline:2px solid var(--sage);outline-offset:-2px;}
+  .lbl.line-current{outline:2px solid var(--sage);outline-offset:-2px;}
   .cell{background:#fff;cursor:pointer;border-right:1px solid var(--grid-line);border-bottom:1px solid var(--grid-line);}
   .cell.cell-blank{background:var(--cell-blank-bg);}
   .pattern-mode-view .cell{cursor:default;}
-  .cell.row-dim{opacity:.35;}
-  .lbl.row-dim{opacity:.35;}
+  .cell.line-dim{opacity:.35;}
+  .lbl.line-dim{opacity:.35;}
 
   .guide-bar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 14px;box-shadow:var(--shadow);}
   .guide-bar .row-indicator{font-weight:800;font-size:15px;min-width:110px;}
@@ -222,7 +228,6 @@
   .login-card h1{font-size:20px;margin:10px 0 4px;}
   .login-card input[type=password]{width:100%;padding:10px 12px;border-radius:9px;border:1px solid var(--border);background:var(--bg);color:var(--ink);font-size:15px;margin-top:14px;text-align:center;}
 
-  footer{text-align:center;color:var(--ink-soft);font-size:12px;padding:30px 20px 40px;}
   a{color:var(--accent);}
 
   @media (max-width:720px){
@@ -303,7 +308,8 @@
     copy: '<svg '+ICON_SVG_ATTRS+'><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
     trash: '<svg '+ICON_SVG_ATTRS+'><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/></svg>',
     gear: '<svg '+ICON_SVG_ATTRS+'><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
-    chevronDown: '<svg '+ICON_SVG_ATTRS+'><path d="m6 9 6 6 6-6"/></svg>'
+    chevronDown: '<svg '+ICON_SVG_ATTRS+'><path d="m6 9 6 6 6-6"/></svg>',
+    arrowRight: '<svg '+ICON_SVG_ATTRS+'><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>'
   };
 
   /* ---------- data layer (Firestore) ---------- */
@@ -338,6 +344,8 @@
       cellSize: pattern.cellSize,
       aspect: pattern.aspect,
       numbering: pattern.numbering,
+      stitchDirection: pattern.stitchDirection,
+      guidePos: pattern.guidePos,
       cellsJson: JSON.stringify(pattern.cells),
       createdAt: pattern.createdAt,
       updatedAt: pattern.updatedAt
@@ -352,6 +360,8 @@
       cellSize: data.cellSize,
       aspect: data.aspect,
       numbering: data.numbering,
+      stitchDirection: data.stitchDirection || 'horizontal',
+      guidePos: data.guidePos || 0,
       cells: JSON.parse(data.cellsJson),
       createdAt: data.createdAt,
       updatedAt: data.updatedAt
@@ -455,7 +465,9 @@
     patternSettingsDraft:null,
     undoStack:[],
     redoStack:[],
-    strokeSnapshot:null
+    strokeSnapshot:null,
+    touchPoints:{},         // pointerId -> {x,y}, tracks active touches for pinch-zoom
+    pinch:null              // {startDist, startCellSize} while a 2-finger pinch is in progress
   };
 
   function snapshotPattern(pattern){
@@ -497,6 +509,15 @@
     var arr = [];
     for(var i=0;i<pattern.rows;i++) arr.push(i);
     return pattern.numbering.flipV ? arr.slice().reverse() : arr;
+  }
+  function getColOrder(pattern){
+    var arr = [];
+    for(var j=0;j<pattern.cols;j++) arr.push(j);
+    return pattern.numbering.flipH ? arr.slice().reverse() : arr;
+  }
+  function isVerticalStitch(pattern){ return pattern.stitchDirection === 'vertical'; }
+  function getGuideOrder(pattern){
+    return isVerticalStitch(pattern) ? getColOrder(pattern) : getRowOrder(pattern);
   }
 
   function touch(project){ project.updatedAt = new Date().toISOString(); }
@@ -541,9 +562,15 @@
     }
   }
 
+  function scrollGuideIntoView(){
+    if(!state.guideActive) return;
+    var el = document.querySelector('.lbl.line-current');
+    if(el) el.scrollIntoView({block:'center', inline:'center'});
+  }
+
   function renderHome(){
     var html = '';
-    html += '<div class="app-header"><div class="brand"><div class="logo">🧶</div><div><h1>Mia\'s Crochet Patterns</h1></div></div>';
+    html += '<div class="app-header"><div class="brand"><h1>Crochet Projects</h1></div>';
     html += '<div style="display:flex;gap:8px;">';
     html += '<button class="btn btn-icon" data-action="refresh" title="Pull the latest data from the database">⟳ Refresh</button>';
     html += '<button class="btn btn-icon" data-action="logout" title="Log out">⎋ Log out</button>';
@@ -567,7 +594,6 @@
       html += '</div>';
     }
     html += '</main>';
-    html += '<footer>Your patterns are synced to your account.</footer>';
     return html;
   }
 
@@ -575,13 +601,12 @@
     var project = getProject(state.projectId);
     if(!project){ state.view='home'; return renderHome(); }
     var html = '';
-    html += '<div class="app-header"><div class="brand"><div class="logo">🧶</div><div><h1>Mia\'s Crochet Patterns</h1></div></div>';
+    html += '<div class="app-header"><div class="brand"><h1>Crochet Projects</h1></div>';
     html += '<button class="btn" data-action="go-home">← All Projects</button></div>';
     html += '<main>';
 
-    html += '<div class="project-title-row"><h2>'+escapeHtml(project.name)+'</h2>';
+    html += '<div class="project-title-row"><h2>'+escapeHtml(project.name)+' <button class="icon-btn-inline" data-action="rename-project" data-id="'+project.id+'" title="Rename">'+ICONS.pencil+'</button></h2>';
     html += '<div class="title-actions">';
-    html += '<button class="btn btn-sm" data-action="rename-project" data-id="'+project.id+'">✎ Rename</button>';
     html += '<button class="btn btn-sm btn-danger" data-action="delete-project" data-id="'+project.id+'">🗑 Delete Project</button>';
     html += '</div></div>';
 
@@ -606,16 +631,17 @@
     }
 
     html += '</main>';
-    html += '<footer>Your patterns are synced to your account.</footer>';
     return html;
   }
 
   function renderPattern(project, pattern){
     var editing = state.patternMode === 'edit';
     var html = '<div class="pattern-header">';
-    html += '<h3>'+escapeHtml(pattern.name)+' <span class="hint">('+pattern.rows+' × '+pattern.cols+')</span></h3>';
+    html += '<h3>'+escapeHtml(pattern.name)+' <button class="icon-btn-inline" data-action="rename-pattern" data-id="'+pattern.id+'" title="Rename">'+ICONS.pencil+'</button> <span class="hint">('+pattern.rows+' × '+pattern.cols+')</span></h3>';
     html += '<div class="actions">';
-    html += '<button class="icon-btn" data-action="rename-pattern" data-id="'+pattern.id+'" title="Rename">'+ICONS.pencil+'</button>';
+    if(!editing && !state.guideActive){
+      html += '<button class="btn btn-sm btn-sage" data-action="guide-toggle" title="Start Stitch Guide">'+ICONS.arrowRight+' Start Stitch</button>';
+    }
     html += '<button class="icon-btn" data-action="duplicate-pattern" data-id="'+pattern.id+'" title="Duplicate">'+ICONS.copy+'</button>';
     html += '<button class="icon-btn icon-btn-danger" data-action="delete-pattern" data-id="'+pattern.id+'" title="Delete">'+ICONS.trash+'</button>';
     if(editing){
@@ -638,35 +664,41 @@
   }
 
   function renderGuideBar(project, pattern){
+    if(!state.guideActive) return '';
+    var vertical = isVerticalStitch(pattern);
+    var unitLabel = vertical ? 'Column' : 'Row';
+    var total = vertical ? pattern.cols : pattern.rows;
     var html = '<div class="guide-bar">';
-    if(!state.guideActive){
-      html += '<button class="btn btn-sage btn-sm" data-action="guide-toggle">🧶 Start Stitch Guide</button>';
-      html += '<span class="hint">Highlight and step through rows as you crochet.</span>';
-    } else {
-      var order = getRowOrder(pattern);
-      var pos = clamp(state.guidePos, 0, order.length-1);
-      state.guidePos = pos;
-      var rowIdx = order[pos];
-      html += '<button class="btn btn-icon btn-sm" data-action="guide-prev" '+(pos<=0?'disabled':'')+'>‹ Prev</button>';
-      html += '<div class="row-indicator">Row '+(pos+1)+' of '+pattern.rows+'</div>';
-      html += '<button class="btn btn-icon btn-sm" data-action="guide-next" '+(pos>=order.length-1?'disabled':'')+'>Next ›</button>';
-      html += '<button class="btn btn-sm btn-ghost" data-action="guide-toggle">✕ Stop</button>';
+    var order = getGuideOrder(pattern);
+    var pos = clamp(state.guidePos, 0, order.length-1);
+    state.guidePos = pos;
+    var lineIdx = order[pos];
+    html += '<button class="btn btn-icon btn-sm" data-action="guide-prev" '+(pos<=0?'disabled':'')+'>‹ Prev</button>';
+    html += '<div class="row-indicator">'+unitLabel+' '+(pos+1)+' of '+total+'</div>';
+    html += '<button class="btn btn-icon btn-sm" data-action="guide-next" '+(pos>=order.length-1?'disabled':'')+'>Next ›</button>';
+    html += '<button class="btn btn-sm btn-ghost" data-action="guide-toggle">✕ Stop</button>';
 
-      var counts = {};
+    var counts = {};
+    if(vertical){
+      for(var i=0;i<pattern.rows;i++){
+        var hexV = pattern.cells[i][lineIdx];
+        if(hexV) counts[hexV] = (counts[hexV]||0)+1;
+      }
+    } else {
       for(var j=0;j<pattern.cols;j++){
-        var hex = pattern.cells[rowIdx][j];
+        var hex = pattern.cells[lineIdx][j];
         if(hex) counts[hex] = (counts[hex]||0)+1;
       }
-      var entries = Object.keys(counts).map(function(hex){ return {hex:hex, n:counts[hex]}; }).sort(function(a,b){ return b.n-a.n; });
-      if(entries.length){
-        html += '<div class="guide-breakdown">';
-        entries.forEach(function(e){
-          var pc = project.palette.find(function(c){ return c.hex===e.hex; });
-          var label = pc ? pc.name : e.hex;
-          html += '<div class="breakdown-chip"><span class="dot" style="background:'+e.hex+'"></span>'+escapeHtml(label)+' × '+e.n+'</div>';
-        });
-        html += '</div>';
-      }
+    }
+    var entries = Object.keys(counts).map(function(hex){ return {hex:hex, n:counts[hex]}; }).sort(function(a,b){ return b.n-a.n; });
+    if(entries.length){
+      html += '<div class="guide-breakdown">';
+      entries.forEach(function(e){
+        var pc = project.palette.find(function(c){ return c.hex===e.hex; });
+        var label = pc ? pc.name : e.hex;
+        html += '<div class="breakdown-chip"><span class="dot" style="background:'+e.hex+'"></span>'+escapeHtml(label)+' × '+e.n+'</div>';
+      });
+      html += '</div>';
     }
     html += '</div>';
     return html;
@@ -704,6 +736,11 @@
     ASPECT_PRESETS.forEach(function(p){
       html += '<option value="'+p.value+'"'+(p===closest?' selected':'')+'>'+p.label+'</option>';
     });
+    html += '</select></div>';
+
+    html += '<div class="field"><label>Stitch direction</label><select data-action="set-draft-direction">';
+    html += '<option value="horizontal"'+(draft.direction!=='vertical'?' selected':'')+'>Horizontal (step through rows)</option>';
+    html += '<option value="vertical"'+(draft.direction==='vertical'?' selected':'')+'>Vertical (step through columns)</option>';
     html += '</select></div>';
 
     html += '<div class="modal-actions" style="margin-top:14px;">';
@@ -778,13 +815,16 @@
     var lblSize = clamp(pattern.cellSize, 20, 30);
 
     var guide = (!editable && state.guideActive);
-    var order = guide ? getRowOrder(pattern) : null;
-    var currentRowIdx = guide ? order[clamp(state.guidePos,0,order.length-1)] : -1;
+    var guideVertical = guide && isVerticalStitch(pattern);
+    var order = guide ? getGuideOrder(pattern) : null;
+    var currentIdx = guide ? order[clamp(state.guidePos,0,order.length-1)] : -1;
+    var currentRowIdx = (guide && !guideVertical) ? currentIdx : -1;
+    var currentColIdx = guideVertical ? currentIdx : -1;
 
     var colsTemplate = lblSize+'px repeat('+pattern.cols+', '+cellW+'px) '+lblSize+'px';
     var rowsTemplate = lblSize+'px repeat('+pattern.rows+', '+cellH+'px) '+lblSize+'px';
 
-    var panMode = editable && state.activeTool==='pan';
+    var panMode = !editable || state.activeTool==='pan';
     var html = '<div class="grid-wrapper'+(panMode?' pan-mode':'')+'" id="grid-wrapper" data-rows="'+pattern.rows+'" data-cols="'+pattern.cols+'" style="grid-template-columns:'+colsTemplate+';grid-template-rows:'+rowsTemplate+';">';
 
     // top row: corner + column labels + corner
@@ -792,7 +832,8 @@
     for(var j=0;j<pattern.cols;j++){
       var cd = colDisplay(pattern,j);
       var hi = isHighlighted(cd,'top',pattern.numbering.oddH);
-      html += '<div class="lbl'+(hi?' lbl-hi':'')+'">'+cd+'</div>';
+      var colGuideClass = guideVertical ? (j===currentColIdx ? ' line-current' : ' line-dim') : '';
+      html += '<div class="lbl'+(hi?' lbl-hi':'')+colGuideClass+'">'+cd+'</div>';
     }
     html += '<div class="corner"></div>';
 
@@ -801,14 +842,14 @@
       var rd = rowDisplay(pattern,i);
       var hiL = isHighlighted(rd,'left',pattern.numbering.oddV);
       var hiR = isHighlighted(rd,'right',pattern.numbering.oddV);
-      var rowGuideClass = '';
-      if(guide) rowGuideClass = (i===currentRowIdx) ? ' row-current' : ' row-dim';
+      var rowGuideClass = (guide && !guideVertical) ? (i===currentRowIdx ? ' line-current' : ' line-dim') : '';
 
       html += '<div class="lbl'+(hiL?' lbl-hi':'')+rowGuideClass+'">'+rd+'</div>';
       for(var jj=0; jj<pattern.cols; jj++){
         var hex = pattern.cells[i][jj];
         var blank = !hex;
-        html += '<div class="cell'+(blank?' cell-blank':'')+rowGuideClass+'" data-row="'+i+'" data-col="'+jj+'"'+(hex?' style="background:'+hex+'"':'')+'></div>';
+        var cellGuideClass = guideVertical ? (jj===currentColIdx ? ' line-current' : ' line-dim') : rowGuideClass;
+        html += '<div class="cell'+(blank?' cell-blank':'')+cellGuideClass+'" data-row="'+i+'" data-col="'+jj+'"'+(hex?' style="background:'+hex+'"':'')+'></div>';
       }
       html += '<div class="lbl'+(hiR?' lbl-hi':'')+rowGuideClass+'">'+rd+'</div>';
     }
@@ -818,7 +859,8 @@
     for(var j2=0;j2<pattern.cols;j2++){
       var cd2 = colDisplay(pattern,j2);
       var hi2 = isHighlighted(cd2,'bottom',pattern.numbering.oddH);
-      html += '<div class="lbl'+(hi2?' lbl-hi':'')+'">'+cd2+'</div>';
+      var colGuideClass2 = guideVertical ? (j2===currentColIdx ? ' line-current' : ' line-dim') : '';
+      html += '<div class="lbl'+(hi2?' lbl-hi':'')+colGuideClass2+'">'+cd2+'</div>';
     }
     html += '<div class="corner"></div>';
 
@@ -880,6 +922,8 @@
       aspect: 1,
       cells: blankCells(rows, cols),
       numbering: {flipV:false, flipH:false, oddV:'left', oddH:'top'},
+      stitchDirection: 'horizontal',
+      guidePos: 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -921,6 +965,7 @@
     var rows = rowsEl ? clamp(parseInt(rowsEl.value,10)||pattern.rows,1,100) : pattern.rows;
     var cols = colsEl ? clamp(parseInt(colsEl.value,10)||pattern.cols,1,100) : pattern.cols;
     return rows!==pattern.rows || cols!==pattern.cols || d.aspect!==pattern.aspect ||
+      d.direction!==(pattern.stitchDirection||'horizontal') ||
       JSON.stringify(d.numbering)!==JSON.stringify(pattern.numbering);
   }
   function closePatternSettingsPrompting(pattern){
@@ -1076,7 +1121,8 @@
               rows: patTS2.rows,
               cols: patTS2.cols,
               numbering: JSON.parse(JSON.stringify(patTS2.numbering)),
-              aspect: patTS2.aspect
+              aspect: patTS2.aspect,
+              direction: patTS2.stitchDirection || 'horizontal'
             };
             state.patternSettingsOpen = true;
           }
@@ -1163,6 +1209,10 @@
         }
         pat2.numbering = state.patternSettingsDraft.numbering;
         pat2.aspect = state.patternSettingsDraft.aspect;
+        if(state.patternSettingsDraft.direction !== (pat2.stitchDirection||'horizontal')){
+          pat2.guidePos = 0;
+        }
+        pat2.stitchDirection = state.patternSettingsDraft.direction;
         touch(prj4); persist(prj4, pat2);
         state.patternSettingsOpen = false;
         state.patternSettingsDraft = null;
@@ -1191,12 +1241,37 @@
         touch(prjZO); persist(prjZO, patZO); render();
         break;
       }
-      case 'guide-toggle': state.guideActive = !state.guideActive; state.guidePos = 0; render(); break;
-      case 'guide-prev': state.guidePos = Math.max(0, state.guidePos-1); render(); break;
-      case 'guide-next': {
-        var pp = getPattern(getProject(state.projectId), state.patternId);
-        state.guidePos = Math.min(pp.rows-1, state.guidePos+1);
+      case 'guide-toggle': {
+        var gtProj = getProject(state.projectId);
+        var gtPat = getPattern(gtProj, state.patternId);
+        state.guideActive = !state.guideActive;
+        if(state.guideActive && gtPat){
+          var gtOrder = getGuideOrder(gtPat);
+          state.guidePos = clamp(gtPat.guidePos||0, 0, gtOrder.length-1);
+        } else {
+          state.guidePos = 0;
+        }
         render();
+        if(state.guideActive) scrollGuideIntoView();
+        break;
+      }
+      case 'guide-prev': {
+        var gpProj = getProject(state.projectId);
+        var gpPat = getPattern(gpProj, state.patternId);
+        state.guidePos = Math.max(0, state.guidePos-1);
+        if(gpPat){ gpPat.guidePos = state.guidePos; savePatternDoc(gpProj, gpPat); }
+        render();
+        scrollGuideIntoView();
+        break;
+      }
+      case 'guide-next': {
+        var gnProj = getProject(state.projectId);
+        var pp = getPattern(gnProj, state.patternId);
+        var gnOrder = getGuideOrder(pp);
+        state.guidePos = Math.min(gnOrder.length-1, state.guidePos+1);
+        if(pp){ pp.guidePos = state.guidePos; savePatternDoc(gnProj, pp); }
+        render();
+        scrollGuideIntoView();
         break;
       }
       case 'refresh': {
@@ -1236,15 +1311,54 @@
       if(!state.patternSettingsDraft) return;
       state.patternSettingsDraft.aspect = parseFloat(t.value);
       render();
+    } else if(action==='set-draft-direction'){
+      if(!state.patternSettingsDraft) return;
+      state.patternSettingsDraft.direction = t.value;
+      render();
     }
   });
 
+  /* two-finger pinch-to-zoom on the grid (touch) */
+  function touchDist(a,b){ var dx=a.x-b.x, dy=a.y-b.y; return Math.sqrt(dx*dx+dy*dy); }
+  function endTouchTracking(e){
+    if(e.pointerType!=='touch' || !(e.pointerId in state.touchPoints)) return;
+    delete state.touchPoints[e.pointerId];
+    if(state.pinch && Object.keys(state.touchPoints).length<2){
+      state.pinch = null;
+      var project = getProject(state.projectId);
+      var pattern = getPattern(project, state.patternId);
+      if(project && pattern){ touch(project); persist(project, pattern); }
+    }
+  }
+
   /* painting via pointer events (mouse + touch) */
   document.addEventListener('pointerdown', function(e){
+    if(e.pointerType==='touch' && e.target.closest('.grid-scroll')){
+      state.touchPoints[e.pointerId] = {x:e.clientX, y:e.clientY};
+      var touchIds = Object.keys(state.touchPoints);
+      if(touchIds.length===2){
+        var pinchProject = getProject(state.projectId);
+        var pinchPattern = getPattern(pinchProject, state.patternId);
+        if(pinchPattern){
+          if(state.isPainting){
+            if(state.strokeSnapshot) pinchPattern.cells = state.strokeSnapshot.cells;
+            state.isPainting = false;
+            state.strokeSnapshot = null;
+          }
+          var a = state.touchPoints[touchIds[0]], b = state.touchPoints[touchIds[1]];
+          state.pinch = {startDist: touchDist(a,b), startCellSize: pinchPattern.cellSize};
+        }
+        e.preventDefault();
+        render();
+        return;
+      }
+      if(touchIds.length>2){ e.preventDefault(); return; }
+    }
     var cell = e.target.closest('.cell');
     if(!cell) return;
     if(state.patternMode !== 'edit') return;
     if(state.activeTool === 'pan') return;
+    if(state.pinch) return;
     var project = getProject(state.projectId);
     var pattern = getPattern(project, state.patternId);
     if(!pattern) return;
@@ -1256,6 +1370,25 @@
     paintCell(project, pattern, parseInt(cell.getAttribute('data-row'),10), parseInt(cell.getAttribute('data-col'),10));
   });
   document.addEventListener('pointermove', function(e){
+    if(state.pinch && e.pointerId in state.touchPoints){
+      state.touchPoints[e.pointerId] = {x:e.clientX, y:e.clientY};
+      var ids = Object.keys(state.touchPoints);
+      if(ids.length===2){
+        var project = getProject(state.projectId);
+        var pattern = getPattern(project, state.patternId);
+        if(pattern){
+          var dist = touchDist(state.touchPoints[ids[0]], state.touchPoints[ids[1]]);
+          var ratio = dist / state.pinch.startDist;
+          var newSize = clamp(Math.round(state.pinch.startCellSize * ratio), CELL_SIZE_MIN, CELL_SIZE_MAX);
+          if(newSize !== pattern.cellSize){
+            pattern.cellSize = newSize;
+            render();
+          }
+        }
+      }
+      e.preventDefault();
+      return;
+    }
     if(!state.isPainting) return;
     var el = document.elementFromPoint(e.clientX, e.clientY);
     var cell = el && el.closest ? el.closest('.cell') : null;
@@ -1279,9 +1412,23 @@
       if(project){ touch(project); persist(project, pattern); render(); }
     }
   }
-  document.addEventListener('pointerup', endPaint);
-  document.addEventListener('pointercancel', endPaint);
+  document.addEventListener('pointerup', function(e){ endTouchTracking(e); endPaint(); });
+  document.addEventListener('pointercancel', function(e){ endTouchTracking(e); endPaint(); });
   document.addEventListener('pointerleave', function(e){ if(e.target===document.documentElement) endPaint(); });
+
+  /* desktop: wheel-over-grid zooms instead of scrolling */
+  document.addEventListener('wheel', function(e){
+    if(!e.target.closest('.grid-scroll')) return;
+    var project = getProject(state.projectId);
+    var pattern = getPattern(project, state.patternId);
+    if(!pattern) return;
+    e.preventDefault();
+    var delta = e.deltaY > 0 ? -2 : 2;
+    var newSize = clamp(pattern.cellSize + delta, CELL_SIZE_MIN, CELL_SIZE_MAX);
+    if(newSize === pattern.cellSize) return;
+    pattern.cellSize = newSize;
+    touch(project); persist(project, pattern); render();
+  }, {passive:false});
 
   /* keyboard nav for guide mode */
   document.addEventListener('keydown', function(e){
@@ -1291,12 +1438,15 @@
     var project = getProject(state.projectId);
     var pattern = getPattern(project, state.patternId);
     if(!pattern) return;
+    var kdOrder = getGuideOrder(pattern);
     if(e.key==='ArrowRight'||e.key==='ArrowDown'){
-      state.guidePos = Math.min(pattern.rows-1, state.guidePos+1);
-      render(); e.preventDefault();
+      state.guidePos = Math.min(kdOrder.length-1, state.guidePos+1);
+      pattern.guidePos = state.guidePos; savePatternDoc(project, pattern);
+      render(); scrollGuideIntoView(); e.preventDefault();
     } else if(e.key==='ArrowLeft'||e.key==='ArrowUp'){
       state.guidePos = Math.max(0, state.guidePos-1);
-      render(); e.preventDefault();
+      pattern.guidePos = state.guidePos; savePatternDoc(project, pattern);
+      render(); scrollGuideIntoView(); e.preventDefault();
     }
   });
 
