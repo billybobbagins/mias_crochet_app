@@ -483,6 +483,23 @@
       console.error('Failed to delete pattern', e);
     });
   }
+  function wipeAllMyData(){
+    return userProjectsRef().get().then(function(snap){
+      var chain = Promise.resolve();
+      snap.docs.forEach(function(pDoc){
+        chain = chain.then(function(){ return deleteProjectRemote(pDoc.id); });
+      });
+      return chain;
+    }).then(function(){
+      return userYarnStashRef().get();
+    }).then(function(yarnSnap){
+      var batch = firestoreDB.batch();
+      yarnSnap.docs.forEach(function(d){ batch.delete(d.ref); });
+      return batch.commit();
+    }).then(function(){
+      return userYarnPresetsRef().delete();
+    });
+  }
 
   function saveYarnDoc(yarn){
     userYarnStashRef().doc(yarn.id).set(serializeYarn(yarn)).catch(function(e){
@@ -849,12 +866,18 @@
 
   function renderGeneralSettingsTab(){
     var current = getTheme();
+    var accountEmail = auth.currentUser ? auth.currentUser.email : 'this account';
     var html = '<div class="field" style="max-width:420px;"><label>Theme</label>';
     html += '<div style="display:flex;gap:8px;">';
     [['system','System'],['light','Light'],['dark','Dark']].forEach(function(opt){
       html += '<button class="btn btn-sm'+(current===opt[0]?' btn-primary':'')+'" data-action="set-theme" data-theme="'+opt[0]+'">'+opt[1]+'</button>';
     });
     html += '</div><div class="hint" style="margin-top:8px;">"System" follows your device\'s light/dark setting. This is saved on this device only.</div>';
+    html += '</div>';
+    html += '<div class="field" style="max-width:420px;margin-top:28px;">';
+    html += '<label style="color:var(--danger);">Danger Zone</label>';
+    html += '<div class="hint" style="margin-bottom:10px;">Permanently deletes every project, pattern, and yarn for the account you\'re currently signed in as (<strong>'+escapeHtml(accountEmail)+'</strong>). Cannot be undone. Only affects this account — never any other login.</div>';
+    html += '<button class="btn btn-danger btn-sm" data-action="wipe-my-data">Wipe all my data</button>';
     html += '</div>';
     return html;
   }
@@ -1438,6 +1461,23 @@
       case 'open-settings': state.view='settings'; render(); break;
       case 'set-settings-tab': state.settingsTab = t.getAttribute('data-tab'); render(); break;
       case 'set-theme': setTheme(t.getAttribute('data-theme')); render(); break;
+      case 'wipe-my-data': {
+        var wipeEmail = auth.currentUser ? auth.currentUser.email : 'this account';
+        if(confirm('Permanently delete ALL projects, patterns, and yarn for '+wipeEmail+'? This cannot be undone.')){
+          renderLoadingScreen('Wiping data…');
+          wipeAllMyData().then(function(){
+            return loadEverythingFromFirestore();
+          }).then(function(){
+            state.view='home'; state.projectId=null; state.patternId=null;
+            render();
+          }).catch(function(err){
+            console.error('Wipe failed', err);
+            alert('Wipe failed — check your connection and try again.');
+            render();
+          });
+        }
+        break;
+      }
       case 'open-add-yarn': openYarnModal(null); break;
       case 'edit-yarn': openYarnModal(t.getAttribute('data-id')); break;
       case 'modal-save-yarn': {

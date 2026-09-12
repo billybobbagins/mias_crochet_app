@@ -102,6 +102,13 @@ tabs (`SETTINGS_TABS`):
 - **Yarn Presets**: the brand/material/size/hook-size dropdown-option
   management, moved here from the Yarn Stash screen (chip list per
   category, add/remove, "Reset to defaults").
+- **General → Danger Zone**: a "Wipe all my data" button that permanently
+  deletes every project/pattern/yarn/preset for *whichever account is
+  currently signed in* (`wipeAllMyData()`, scoped by `auth.currentUser`'s
+  uid the same way every other read/write already is — it can never touch
+  a different account). Meant for clearing out test data on the Developer
+  account; shows the signed-in email right on the button so it's clear
+  which account is about to be wiped.
 
 ### Yarn Stash / Project Yarn / Pattern Yarn
 Three-tier system for curating which colors are offered when picking a
