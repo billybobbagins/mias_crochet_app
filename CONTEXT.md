@@ -173,6 +173,8 @@ single-`localStorage`-blob approach:
   (`pattern.guidePos` in Firestore) every time you step, so closing the app
   mid-pattern and reopening the guide later picks back up at the same spot.
   Position resets to the start if you change the Stitch direction setting.
+  When resuming from a non-zero position, a "Resuming where you left off"
+  note and a "Revert to beginning" button appear in the guide bar.
 - The grid can be panned/scrolled and zoomed in view mode the same as in
   edit mode (previously view mode blocked all touch panning — a real bug,
   not by design — since it always had `touch-action:none` set even outside

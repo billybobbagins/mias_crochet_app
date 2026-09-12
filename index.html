@@ -301,7 +301,7 @@
     paint: '<svg '+ICON_SVG_ATTRS+'><path d="M9 15c-3 0-5 2-5 5 3 0 5-1 5-3"/><path d="M9 15 19 5a2.1 2.1 0 0 1 3 3L12 18l-3-3z"/></svg>',
     bucket: '<svg '+ICON_SVG_ATTRS+'><path d="m2 12 9-9 9 9-9 9-9-9z"/><path d="M11 3v9"/><path d="M20 17c0 1.7-1.3 3-3 3s-3-1.3-3-3c0-1.5 3-5 3-5s3 3.5 3 5z"/></svg>',
     erase: '<svg '+ICON_SVG_ATTRS+'><path d="M20 20H9l-6-6a2 2 0 0 1 0-2.8L12.2 2a2 2 0 0 1 2.8 0l6 6a2 2 0 0 1 0 2.8L14 18"/><path d="M6 12l6 6"/></svg>',
-    pan: '<svg '+ICON_SVG_ATTRS+'><path d="M13 3v9m0 0V6a1.5 1.5 0 0 1 3 0v6m-3 0V8a1.5 1.5 0 0 1 3 0m-6 4V6a1.5 1.5 0 0 0-3 0v9"/><path d="M7 11v3a7 7 0 0 0 7 7h1a6 6 0 0 0 6-6v-3"/></svg>',
+    pan: '<svg '+ICON_SVG_ATTRS+'><path d="M12 2v20"/><path d="M2 12h20"/><path d="m5 9-3 3 3 3"/><path d="m9 19 3 3 3-3"/><path d="m19 9 3 3-3 3"/><path d="m9 5 3-3 3 3"/></svg>',
     zoomIn: '<svg '+ICON_SVG_ATTRS+'><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/><path d="M11 8v6M8 11h6"/></svg>',
     zoomOut: '<svg '+ICON_SVG_ATTRS+'><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/><path d="M8 11h6"/></svg>',
     pencil: '<svg '+ICON_SVG_ATTRS+'><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
@@ -458,6 +458,7 @@
     activeTool:'paint',     // 'paint' | 'bucket' | 'erase' | 'pan'
     guideActive:false,
     guidePos:0,
+    guideResumed:false,
     isPainting:false,
     paintingButton:null,
     colorPickerOpen:false,
@@ -607,7 +608,7 @@
 
     html += '<div class="project-title-row"><h2>'+escapeHtml(project.name)+' <button class="icon-btn-inline" data-action="rename-project" data-id="'+project.id+'" title="Rename">'+ICONS.pencil+'</button></h2>';
     html += '<div class="title-actions">';
-    html += '<button class="btn btn-sm btn-danger" data-action="delete-project" data-id="'+project.id+'">🗑 Delete Project</button>';
+    html += '<button class="icon-btn icon-btn-danger" data-action="delete-project" data-id="'+project.id+'" title="Delete Project">'+ICONS.trash+'</button>';
     html += '</div></div>';
 
     html += '<div class="tabs">';
@@ -673,6 +674,10 @@
     var pos = clamp(state.guidePos, 0, order.length-1);
     state.guidePos = pos;
     var lineIdx = order[pos];
+    if(state.guideResumed){
+      html += '<span class="hint">Resuming where you left off</span>';
+      html += '<button class="btn btn-sm btn-ghost" data-action="guide-revert">Revert to beginning</button>';
+    }
     html += '<button class="btn btn-icon btn-sm" data-action="guide-prev" '+(pos<=0?'disabled':'')+'>‹ Prev</button>';
     html += '<div class="row-indicator">'+unitLabel+' '+(pos+1)+' of '+total+'</div>';
     html += '<button class="btn btn-icon btn-sm" data-action="guide-next" '+(pos>=order.length-1?'disabled':'')+'>Next ›</button>';
@@ -1247,12 +1252,25 @@
         state.guideActive = !state.guideActive;
         if(state.guideActive && gtPat){
           var gtOrder = getGuideOrder(gtPat);
-          state.guidePos = clamp(gtPat.guidePos||0, 0, gtOrder.length-1);
+          var gtSaved = clamp(gtPat.guidePos||0, 0, gtOrder.length-1);
+          state.guidePos = gtSaved;
+          state.guideResumed = gtSaved > 0;
         } else {
           state.guidePos = 0;
+          state.guideResumed = false;
         }
         render();
         if(state.guideActive) scrollGuideIntoView();
+        break;
+      }
+      case 'guide-revert': {
+        var grProj = getProject(state.projectId);
+        var grPat = getPattern(grProj, state.patternId);
+        state.guidePos = 0;
+        state.guideResumed = false;
+        if(grPat){ grPat.guidePos = 0; savePatternDoc(grProj, grPat); }
+        render();
+        scrollGuideIntoView();
         break;
       }
       case 'guide-prev': {
