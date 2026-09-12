@@ -1,0 +1,11 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Only the signed-in account can read/write its own data subtree.
+    // This app uses a single shared login (see CONTEXT.md), so this
+    // effectively locks all data to that one account.
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

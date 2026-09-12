@@ -199,6 +199,11 @@
   .modal input[type=text]{width:100%;padding:9px 11px;border-radius:9px;border:1px solid var(--border);background:var(--bg);color:var(--ink);font-size:14px;}
   .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;}
 
+  .login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;text-align:center;}
+  .login-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:32px 28px;max-width:340px;width:100%;}
+  .login-card h1{font-size:20px;margin:10px 0 4px;}
+  .login-card input[type=password]{width:100%;padding:10px 12px;border-radius:9px;border:1px solid var(--border);background:var(--bg);color:var(--ink);font-size:15px;margin-top:14px;text-align:center;}
+
   footer{text-align:center;color:var(--ink-soft);font-size:12px;padding:30px 20px 40px;}
   a{color:var(--accent);}
 
@@ -213,9 +218,31 @@
 <div id="app"></div>
 <div id="modal-root"></div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
 <script>
 (function(){
   "use strict";
+
+  /* ---------- firebase ---------- */
+  var firebaseConfig = {
+    apiKey: "AIzaSyDhm442NE_V62IFidTO5j3eEjfiHg_0baE",
+    authDomain: "mias-crochet-patterns.firebaseapp.com",
+    projectId: "mias-crochet-patterns",
+    storageBucket: "mias-crochet-patterns.firebasestorage.app",
+    messagingSenderId: "463256704537",
+    appId: "1:463256704537:web:85c16a6d26af758f92bc88"
+  };
+  firebase.initializeApp(firebaseConfig);
+  var auth = firebase.auth();
+  var firestoreDB = firebase.firestore();
+  firestoreDB.enablePersistence().catch(function(err){
+    console.warn('Offline persistence unavailable:', err.code);
+  });
+  var LOGIN_EMAIL = 'btattersall13@gmail.com';
+  var LEGACY_LOCAL_KEY = 'miasCrochetApp.v1';
 
   /* ---------- helpers ---------- */
   function uid(){ return 'id_' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
@@ -232,9 +259,7 @@
     }catch(e){ return ''; }
   }
 
-  /* ---------- data layer ---------- */
-  var DB_KEY = 'miasCrochetApp.v1';
-
+  /* ---------- data layer (Firestore) ---------- */
   function defaultPalette(){
     return [
       {id:uid(), hex:'#d97a5f', name:'Terracotta'},
@@ -244,28 +269,137 @@
     ];
   }
 
-  function loadDB(){
-    try{
-      var raw = localStorage.getItem(DB_KEY);
-      if(!raw) return {projects:[]};
-      var parsed = JSON.parse(raw);
-      if(!parsed || !Array.isArray(parsed.projects)) return {projects:[]};
-      return parsed;
-    }catch(e){
-      console.error('Failed to load data', e);
-      return {projects:[]};
-    }
-  }
-  function saveDB(){
-    try{
-      localStorage.setItem(DB_KEY, JSON.stringify(db));
-    }catch(e){
-      alert('Could not save — your browser storage might be full.');
-      console.error(e);
-    }
+  var db = {projects:[]};
+
+  function userProjectsRef(){
+    return firestoreDB.collection('users').doc(auth.currentUser.uid).collection('projects');
   }
 
-  var db = loadDB();
+  function serializeProject(project){
+    return {
+      name: project.name,
+      createdAt: project.createdAt,
+      updatedAt: project.updatedAt,
+      palette: project.palette
+    };
+  }
+  function serializePattern(pattern){
+    return {
+      name: pattern.name,
+      rows: pattern.rows,
+      cols: pattern.cols,
+      cellSize: pattern.cellSize,
+      aspect: pattern.aspect,
+      numbering: pattern.numbering,
+      cellsJson: JSON.stringify(pattern.cells),
+      createdAt: pattern.createdAt,
+      updatedAt: pattern.updatedAt
+    };
+  }
+  function deserializePattern(id, data){
+    return {
+      id: id,
+      name: data.name,
+      rows: data.rows,
+      cols: data.cols,
+      cellSize: data.cellSize,
+      aspect: data.aspect,
+      numbering: data.numbering,
+      cells: JSON.parse(data.cellsJson),
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt
+    };
+  }
+
+  function saveProjectDoc(project){
+    userProjectsRef().doc(project.id).set(serializeProject(project)).catch(function(e){
+      console.error('Failed to save project', e);
+    });
+  }
+  function savePatternDoc(project, pattern){
+    userProjectsRef().doc(project.id).collection('patterns').doc(pattern.id).set(serializePattern(pattern)).catch(function(e){
+      console.error('Failed to save pattern', e);
+    });
+  }
+  function persist(project, pattern){
+    if(project) saveProjectDoc(project);
+    if(pattern) savePatternDoc(project, pattern);
+  }
+  function deleteProjectRemote(projectId){
+    var projRef = userProjectsRef().doc(projectId);
+    return projRef.collection('patterns').get().then(function(snap){
+      var batch = firestoreDB.batch();
+      snap.forEach(function(d){ batch.delete(d.ref); });
+      batch.delete(projRef);
+      return batch.commit();
+    }).catch(function(e){ console.error('Failed to delete project', e); });
+  }
+  function deletePatternRemote(projectId, patternId){
+    return userProjectsRef().doc(projectId).collection('patterns').doc(patternId).delete().catch(function(e){
+      console.error('Failed to delete pattern', e);
+    });
+  }
+
+  function loadAllFromFirestore(){
+    return userProjectsRef().get().then(function(projectsSnap){
+      return Promise.all(projectsSnap.docs.map(function(pDoc){
+        var project = pDoc.data();
+        project.id = pDoc.id;
+        return pDoc.ref.collection('patterns').get().then(function(patternsSnap){
+          project.patterns = patternsSnap.docs.map(function(ptDoc){
+            return deserializePattern(ptDoc.id, ptDoc.data());
+          });
+          project.patterns.sort(function(a,b){ return new Date(a.createdAt) - new Date(b.createdAt); });
+          return project;
+        });
+      }));
+    }).then(function(projects){
+      return {projects: projects};
+    });
+  }
+
+  function importProjectsToFirestore(projects){
+    var chain = Promise.resolve();
+    projects.forEach(function(project){
+      chain = chain.then(function(){
+        return userProjectsRef().doc(project.id).set(serializeProject(project)).then(function(){
+          var patternChain = Promise.resolve();
+          (project.patterns||[]).forEach(function(pattern){
+            patternChain = patternChain.then(function(){
+              return userProjectsRef().doc(project.id).collection('patterns').doc(pattern.id).set(serializePattern(pattern));
+            });
+          });
+          return patternChain;
+        });
+      });
+    });
+    return chain;
+  }
+
+  function wipeAllRemoteData(){
+    return userProjectsRef().get().then(function(snap){
+      var chain = Promise.resolve();
+      snap.docs.forEach(function(pDoc){
+        chain = chain.then(function(){ return deleteProjectRemote(pDoc.id); });
+      });
+      return chain;
+    });
+  }
+
+  function tryImportLegacyLocalData(){
+    try{
+      var raw = localStorage.getItem(LEGACY_LOCAL_KEY);
+      if(!raw) return Promise.resolve(false);
+      var parsed = JSON.parse(raw);
+      if(!parsed || !Array.isArray(parsed.projects) || !parsed.projects.length) return Promise.resolve(false);
+      if(db.projects.length) return Promise.resolve(false);
+      if(!confirm('Found pattern data saved in this browser from before switching to your account. Import it now?')) return Promise.resolve(false);
+      return importProjectsToFirestore(parsed.projects).then(function(){ return true; });
+    }catch(e){
+      console.error('Legacy import failed', e);
+      return Promise.resolve(false);
+    }
+  }
 
   /* ---------- app state (not persisted) ---------- */
   var state = {
@@ -350,6 +484,7 @@
     html += '<div style="display:flex;gap:8px;">';
     html += '<button class="btn btn-icon" data-action="backup" title="Download a backup of all your data">⬇ Backup</button>';
     html += '<button class="btn btn-icon" data-action="restore" title="Restore from a backup file">⬆ Restore</button>';
+    html += '<button class="btn btn-icon" data-action="logout" title="Log out">⎋ Log out</button>';
     html += '</div></div>';
     html += '<main>';
 
@@ -632,7 +767,7 @@
       patterns: []
     };
     db.projects.push(p);
-    saveDB();
+    persist(p);
     state.view='project'; state.projectId=p.id; state.patternId=null;
     render();
   }
@@ -653,7 +788,7 @@
     };
     project.patterns.push(pt);
     touch(project);
-    saveDB();
+    persist(project, pt);
     state.patternId = pt.id;
     state.patternMode = 'edit';
     render();
@@ -664,7 +799,7 @@
     var color = state.activeTool === 'erase' ? null : state.activeColor;
     if(state.activeTool === 'bucket'){
       bucketFill(pattern, row, col, color);
-      touch(project); saveDB(); render();
+      touch(project); persist(project, pattern); render();
       return;
     }
     if(pattern.cells[row][col] === color) return;
@@ -719,7 +854,7 @@
         var p = getProject(id);
         if(p && confirm('Delete project "'+p.name+'" and all its patterns? This cannot be undone.')){
           db.projects = db.projects.filter(function(x){ return x.id!==id; });
-          saveDB();
+          deleteProjectRemote(id);
           if(state.projectId===id){ state.view='home'; state.projectId=null; }
           render();
         }
@@ -729,7 +864,7 @@
         var proj = getProject(t.getAttribute('data-id'));
         if(!proj) break;
         var nn = prompt('Rename project', proj.name);
-        if(nn && nn.trim()){ proj.name = nn.trim(); touch(proj); saveDB(); render(); }
+        if(nn && nn.trim()){ proj.name = nn.trim(); touch(proj); persist(proj); render(); }
         break;
       }
       case 'new-pattern': openNewPatternModal(); break;
@@ -745,7 +880,7 @@
         var pt2 = getPattern(pr, t.getAttribute('data-id'));
         if(!pt2) break;
         var pn = prompt('Rename pattern', pt2.name);
-        if(pn && pn.trim()){ pt2.name = pn.trim(); touch(pr); saveDB(); render(); }
+        if(pn && pn.trim()){ pt2.name = pn.trim(); touch(pr); persist(pr, pt2); render(); }
         break;
       }
       case 'duplicate-pattern': {
@@ -758,7 +893,7 @@
         copy.createdAt = new Date().toISOString();
         copy.updatedAt = new Date().toISOString();
         pr2.patterns.push(copy);
-        touch(pr2); saveDB();
+        touch(pr2); persist(pr2, copy);
         state.patternId = copy.id;
         render();
         break;
@@ -769,7 +904,7 @@
         if(!pt4) break;
         if(confirm('Delete pattern "'+pt4.name+'"? This cannot be undone.')){
           pr3.patterns = pr3.patterns.filter(function(x){ return x.id!==pt4.id; });
-          touch(pr3); saveDB();
+          touch(pr3); persist(pr3); deletePatternRemote(pr3.id, pt4.id);
           if(state.patternId===pt4.id) state.patternId = pr3.patterns.length ? pr3.patterns[0].id : null;
           render();
         }
@@ -793,7 +928,7 @@
         var cid = t.getAttribute('data-id');
         if(confirm('Remove this color from the palette? Squares already painted with it will keep their color.')){
           prj.palette = prj.palette.filter(function(c){ return c.id!==cid; });
-          touch(prj); saveDB(); render();
+          touch(prj); persist(prj); render();
         }
         break;
       }
@@ -804,7 +939,7 @@
         var hex = hexEl.value;
         var cname = nameEl2.value.trim() || hex;
         prj2.palette.push({id:uid(), hex:hex, name:cname});
-        touch(prj2); saveDB();
+        touch(prj2); persist(prj2);
         state.activeColor = hex;
         render();
         break;
@@ -815,7 +950,7 @@
         if(!pat) break;
         if(confirm('Clear the entire grid? This cannot be undone.')){
           pat.cells = blankCells(pat.rows, pat.cols);
-          touch(prj3); saveDB(); render();
+          touch(prj3); persist(prj3, pat); render();
         }
         break;
       }
@@ -831,7 +966,7 @@
         pat2.cells = resizeCells(pat2.cells, pat2.rows, pat2.cols, nr, nc);
         pat2.rows = nr; pat2.cols = nc;
         pat2.cellSize = clamp(Math.round(420/Math.max(nr,nc)), 12, 30);
-        touch(prj4); saveDB(); render();
+        touch(prj4); persist(prj4, pat2); render();
         break;
       }
       case 'guide-toggle': state.guideActive = !state.guideActive; state.guidePos = 0; render(); break;
@@ -844,6 +979,14 @@
       }
       case 'backup': doBackup(); break;
       case 'restore': doRestoreClick(); break;
+      case 'logout': {
+        if(confirm('Log out?')){
+          db = {projects:[]};
+          state.view='home'; state.projectId=null; state.patternId=null;
+          auth.signOut();
+        }
+        break;
+      }
       default: break;
     }
   });
@@ -860,19 +1003,19 @@
       var field = t.getAttribute('data-field');
       var val = t.value;
       pat.numbering[field] = (val==='true') ? true : (val==='false') ? false : val;
-      touch(prj); saveDB(); render();
+      touch(prj); persist(prj, pat); render();
     } else if(action==='set-cellsize'){
       var prj2 = getProject(state.projectId);
       var pat2 = getPattern(prj2, state.patternId);
       if(!pat2) return;
       pat2.cellSize = parseInt(t.value,10);
-      touch(prj2); saveDB(); render();
+      touch(prj2); persist(prj2, pat2); render();
     } else if(action==='set-aspect'){
       var prj3 = getProject(state.projectId);
       var pat3 = getPattern(prj3, state.patternId);
       if(!pat3) return;
       pat3.aspect = parseInt(t.value,10)/100;
-      touch(prj3); saveDB(); render();
+      touch(prj3); persist(prj3, pat3); render();
     }
   });
 
@@ -902,7 +1045,8 @@
     if(state.isPainting){
       state.isPainting = false;
       var project = getProject(state.projectId);
-      if(project){ touch(project); saveDB(); }
+      var pattern = getPattern(project, state.patternId);
+      if(project){ touch(project); persist(project, pattern); }
     }
   }
   document.addEventListener('pointerup', endPaint);
@@ -951,12 +1095,19 @@
         try{
           var parsed = JSON.parse(reader.result);
           if(!parsed || !Array.isArray(parsed.projects)) throw new Error('Invalid file');
-          if(confirm('Restoring will replace ALL current data in this browser with the contents of the backup file. Continue?')){
-            db = parsed;
-            saveDB();
+          if(!confirm('Restoring will replace ALL current data in your account with the contents of the backup file. Continue?')) return;
+          wipeAllRemoteData().then(function(){
+            return importProjectsToFirestore(parsed.projects);
+          }).then(function(){
+            return loadAllFromFirestore();
+          }).then(function(loaded){
+            db = loaded;
             state.view='home'; state.projectId=null; state.patternId=null;
             render();
-          }
+          }).catch(function(e){
+            console.error('Restore failed', e);
+            alert('Restore failed — check your connection and try again.');
+          });
         }catch(err){
           alert('Could not read that file — it doesn\'t look like a valid backup.');
         }
@@ -966,8 +1117,49 @@
     input.click();
   }
 
+  /* ================= AUTH / BOOT ================= */
+  function renderLoginScreen(errorMsg){
+    appEl.innerHTML =
+      '<div class="login-screen"><div class="login-card">' +
+      '<div class="logo" style="font-size:40px;">🧶</div>' +
+      '<h1>Mia\'s Crochet Patterns</h1>' +
+      '<p class="hint">Enter your passcode to continue</p>' +
+      '<form id="login-form">' +
+      '<input type="password" id="login-passcode" placeholder="Passcode" autofocus>' +
+      (errorMsg ? '<p class="hint" style="color:var(--danger);">'+escapeHtml(errorMsg)+'</p>' : '') +
+      '<button type="submit" class="btn btn-primary" style="width:100%;margin-top:14px;">Enter</button>' +
+      '</form></div></div>';
+    var form = document.getElementById('login-form');
+    form.addEventListener('submit', function(e){
+      e.preventDefault();
+      var pass = document.getElementById('login-passcode').value;
+      if(!pass) return;
+      auth.signInWithEmailAndPassword(LOGIN_EMAIL, pass).catch(function(){
+        renderLoginScreen('Incorrect passcode. Try again.');
+      });
+    });
+  }
+
+  function renderLoadingScreen(text){
+    appEl.innerHTML = '<div class="login-screen"><div class="hint">'+escapeHtml(text||'Loading your patterns…')+'</div></div>';
+  }
+
   /* ================= INIT ================= */
-  render();
+  auth.onAuthStateChanged(function(user){
+    if(!user){ renderLoginScreen(); return; }
+    renderLoadingScreen();
+    loadAllFromFirestore().then(function(loaded){
+      db = loaded;
+      return tryImportLegacyLocalData();
+    }).then(function(imported){
+      return imported ? loadAllFromFirestore().then(function(loaded){ db = loaded; }) : null;
+    }).then(function(){
+      render();
+    }).catch(function(e){
+      console.error('Failed to load data', e);
+      renderLoadingScreen('Could not load your patterns. Check your connection and reload the page.');
+    });
+  });
 })();
 </script>
 </body>
