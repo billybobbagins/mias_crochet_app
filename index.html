@@ -258,11 +258,9 @@
     console.warn('Offline persistence unavailable:', err.code);
   });
   // Two fixed Firebase Auth accounts sharing this app, each with its own
-  // Firestore data (isolated by uid via firestore.rules). Create the "mia"
-  // account in the Firebase console with this exact email + whatever
-  // passcode she should use; the "dev" account already exists.
+  // Firestore data (isolated by uid via firestore.rules).
   var LOGIN_ACCOUNTS = [
-    {id:'mia', label:'Mia', email:'mia@mias-crochet-patterns.app'},
+    {id:'mia', label:'Mia', email:'miajade.kha@gmail.com'},
     {id:'dev', label:'Developer', email:'btattersall13@gmail.com'}
   ];
   var LEGACY_LOCAL_KEY = 'miasCrochetApp.v1';

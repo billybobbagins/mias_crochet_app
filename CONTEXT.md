@@ -36,10 +36,10 @@ single-`localStorage`-blob approach:
   own `users/{uid}` subtree, enforced by `firestore.rules`. The "Developer"
   account is for testing without touching Mia's real data. Firebase persists
   the signed-in session across visits, so re-entering the passcode is only
-  needed after signing out or clearing site data. **Setup step**: the "mia"
-  account (email `mia@mias-crochet-patterns.app`) must be created once in
-  the Firebase console with whatever passcode Mia should use — the "dev"
-  account already exists.
+  needed after signing out or clearing site data. Both accounts now exist:
+  "mia" uses Mia's real email (`miajade.kha@gmail.com`, chosen so real
+  usernames/emails stay an option later) and "dev" is the existing
+  developer account — see `LOGIN_ACCOUNTS` in `index.html` for the mapping.
 - **Data model** (Firestore): `users/{uid}/projects/{projectId}` holds
   project metadata (name, palette, timestamps); each project has a
   `patterns/{patternId}` subcollection holding one document per pattern
@@ -174,9 +174,8 @@ ones as they come up. Nothing here is committed to until we discuss it.
       resize/rename, "color"→"yarn" terminology, Backup/Restore removed in
       favor of a Refresh button, project cards drop the color-swatch row,
       two isolated login accounts (Mia / Developer).
-- [ ] **Create the "mia" Firebase Auth account** in the console
-      (`mia@mias-crochet-patterns.app` + a passcode of your choosing) — the
-      login screen's "Mia" button won't work until this exists.
+- [x] Create the "mia" Firebase Auth account — done, using Mia's real email
+      (`miajade.kha@gmail.com`).
 - [ ] Real end-to-end test of this second UX pass on desktop and an actual
       phone (Claude couldn't browser-test the live login flow — no access to
       either account's real passcode). Please verify: zoom +/− and Pan on a
@@ -184,7 +183,7 @@ ones as they come up. Nothing here is committed to until we discuss it.
       bucket-fill undo/redo, toolbar as two clean rows on a phone in
       landscape, Pattern Settings Save/Cancel/discard-prompt and its
       undo/redo, pattern rename undo, Refresh pulling fresh data, and each
-      login account seeing separate projects once Mia's account exists.
+      login account seeing separate projects.
 - [ ] **Yarn Stash system** (next planning pass): a proper yarn catalog
       (brand/color/material/size/recommended hook, with manageable preset
       dropdowns) plus "Project Yarn" (per-project subset) and "Pattern Yarn"
