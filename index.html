@@ -169,11 +169,6 @@
     position:relative;width:34px;height:34px;border-radius:9px;border:2px solid var(--border);cursor:pointer;
   }
   .palette-swatch.selected{border-color:var(--ink);box-shadow:0 0 0 2px var(--accent);}
-  .palette-swatch .rm{
-    position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:50%;background:var(--danger);
-    color:#fff;font-size:10px;line-height:16px;text-align:center;cursor:pointer;display:none;
-  }
-  .palette-swatch:hover .rm{display:block;}
   .add-color-row{display:flex;gap:6px;align-items:center;}
   .add-color-row input[type=text]{
     flex:1;min-width:0;padding:7px 9px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--ink);font-size:13px;
@@ -227,7 +222,7 @@
 
   /* Modal */
   .modal-backdrop{position:fixed;inset:0;background:rgba(30,20,12,.4);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;}
-  .modal{background:var(--card);border-radius:var(--radius);padding:22px;width:100%;max-width:380px;box-shadow:0 12px 40px rgba(0,0,0,.25);}
+  .modal{background:var(--card);border-radius:var(--radius);padding:22px;width:100%;max-width:380px;max-height:calc(100vh - 32px);overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.25);}
   .modal h3{margin-bottom:14px;}
   .modal .field{margin-bottom:12px;}
   .modal input[type=text]{width:100%;padding:9px 11px;border-radius:9px;border:1px solid var(--border);background:var(--bg);color:var(--ink);font-size:14px;}
@@ -473,22 +468,23 @@
   }
 
   function migrateProjectYarn(project){
-    if(project.yarnIds) return;
-    var ids = (project.palette||[]).map(function(c){
-      var y = {
-        id: uid(), name: c.name, hex: c.hex,
-        brand: null, material: null, size: null, hookSize: null,
-        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
-      };
-      db.yarnStash.push(y);
-      saveYarnDoc(y);
-      return y.id;
-    });
-    project.yarnIds = ids;
-    persist(project);
+    if(!project.yarnIds){
+      var ids = (project.palette||[]).map(function(c){
+        var y = {
+          id: uid(), name: c.name, hex: c.hex,
+          brand: null, material: null, size: null, hookSize: null,
+          createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+        };
+        db.yarnStash.push(y);
+        saveYarnDoc(y);
+        return y.id;
+      });
+      project.yarnIds = ids;
+      persist(project);
+    }
     project.patterns.forEach(function(pt){
       if(!pt.yarnIds){
-        pt.yarnIds = ids.slice();
+        pt.yarnIds = project.yarnIds.slice();
         savePatternDoc(project, pt);
       }
     });
@@ -821,6 +817,21 @@
     openModal(html);
   }
 
+  function openPatternYarnModal(){
+    var project = getProject(state.projectId);
+    var pattern = getPattern(project, state.patternId);
+    if(!pattern) return;
+    var html = '<div class="modal">';
+    html += '<h3>Pattern Yarn</h3>';
+    html += '<div class="hint" style="margin-bottom:10px;">Choose which yarn this pattern uses. Checking one not yet in this project\'s yarn also adds it there.</div>';
+    html += '<div id="pattern-yarn-checklist">'+yarnChecklistHtml(pattern.yarnIds||[])+'</div>';
+    html += quickAddYarnRowHtml('pattern-yarn-checklist','pty-new-hex','pty-new-name',
+      project ? ' data-cascade-project="'+project.id+'"' : '');
+    html += '<div class="modal-actions"><button class="btn" data-action="modal-cancel">Cancel</button><button class="btn btn-primary" data-action="save-pattern-yarn">Save</button></div>';
+    html += '</div>';
+    openModal(html);
+  }
+
   function renderProjectView(){
     var project = getProject(state.projectId);
     if(!project){ state.view='home'; return renderHome(); }
@@ -923,7 +934,7 @@
     if(entries.length){
       html += '<div class="guide-breakdown">';
       entries.forEach(function(e){
-        var pc = project.palette.find(function(c){ return c.hex===e.hex; });
+        var pc = db.yarnStash.find(function(y){ return y.hex.toLowerCase()===e.hex.toLowerCase(); });
         var label = pc ? pc.name : e.hex;
         html += '<div class="breakdown-chip"><span class="dot" style="background:'+e.hex+'"></span>'+escapeHtml(label)+' × '+e.n+'</div>';
       });
@@ -1004,20 +1015,20 @@
     html += '<div class="toolbar-group dropdown-wrap">';
     html += '<button class="color-btn" data-action="toggle-color-picker" style="background:'+state.activeColor+';" title="Active yarn"></button>';
     if(state.colorPickerOpen){
+      var patternYarn = db.yarnStash.filter(function(y){ return (pattern.yarnIds||[]).indexOf(y.id)!==-1; });
       html += '<div class="dropdown-panel">';
-      html += '<h4 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:8px;">Project Yarn</h4>';
-      html += '<div class="palette-grid">';
-      project.palette.forEach(function(c){
-        var sel = state.activeColor.toLowerCase() === c.hex.toLowerCase();
-        html += '<div class="palette-swatch'+(sel?' selected':'')+'" style="background:'+c.hex+'" data-action="select-palette-color" data-hex="'+c.hex+'" title="'+escapeHtml(c.name)+'">';
-        html += '<div class="rm" data-action="remove-palette-color" data-id="'+c.id+'" title="Remove from project yarn">×</div></div>';
-      });
-      html += '</div>';
-      html += '<div class="add-color-row">';
-      html += '<input type="color" id="new-color-hex" value="#d97a5f">';
-      html += '<input type="text" id="new-color-name" placeholder="Yarn name">';
-      html += '<button class="btn btn-sm btn-primary" data-action="add-palette-color">Add</button>';
-      html += '</div>';
+      html += '<h4 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:8px;">Pattern Yarn</h4>';
+      if(!patternYarn.length){
+        html += '<div class="hint" style="margin-bottom:10px;">No yarn picked for this pattern yet.</div>';
+      } else {
+        html += '<div class="palette-grid">';
+        patternYarn.forEach(function(y){
+          var sel = state.activeColor.toLowerCase() === y.hex.toLowerCase();
+          html += '<div class="palette-swatch'+(sel?' selected':'')+'" style="background:'+y.hex+'" data-action="select-palette-color" data-hex="'+y.hex+'" title="'+escapeHtml(y.name)+'"></div>';
+        });
+        html += '</div>';
+      }
+      html += '<button class="btn btn-sm" style="width:100%;" data-action="open-pattern-yarn">🧶 Manage Pattern Yarn</button>';
       html += '</div>';
     }
     html += '</div>';
@@ -1529,26 +1540,30 @@
         render();
         break;
       }
-      case 'remove-palette-color': {
-        e.stopPropagation();
-        var prj = getProject(state.projectId);
-        var cid = t.getAttribute('data-id');
-        if(confirm('Remove this yarn from the project? Squares already painted with it will keep their color.')){
-          prj.palette = prj.palette.filter(function(c){ return c.id!==cid; });
-          touch(prj); persist(prj); render();
-        }
+      case 'open-pattern-yarn': {
+        state.colorPickerOpen = false;
+        openPatternYarnModal();
         break;
       }
-      case 'add-palette-color': {
-        var prj2 = getProject(state.projectId);
-        var hexEl = document.getElementById('new-color-hex');
-        var nameEl2 = document.getElementById('new-color-name');
-        var hex = hexEl.value;
-        var cname = nameEl2.value.trim() || hex;
-        prj2.palette.push({id:uid(), hex:hex, name:cname});
-        touch(prj2); persist(prj2);
-        state.activeColor = hex;
-        state.colorPickerOpen = false;
+      case 'save-pattern-yarn': {
+        var spyProj = getProject(state.projectId);
+        var spyPat = getPattern(spyProj, state.patternId);
+        if(!spyPat) break;
+        var pyContainer2 = document.getElementById('pattern-yarn-checklist');
+        var newPatYarnIds = readCheckedYarnIds(pyContainer2);
+        spyPat.yarnIds = newPatYarnIds;
+        var newlyInProject = newPatYarnIds.filter(function(id){ return (spyProj.yarnIds||[]).indexOf(id)===-1; });
+        if(newlyInProject.length){
+          spyProj.yarnIds = (spyProj.yarnIds||[]).concat(newlyInProject);
+          saveProjectDoc(spyProj);
+        }
+        touch(spyProj); persist(spyProj, spyPat);
+        var stillHasActive = db.yarnStash.some(function(y){ return newPatYarnIds.indexOf(y.id)!==-1 && y.hex.toLowerCase()===state.activeColor.toLowerCase(); });
+        if(!stillHasActive && newPatYarnIds.length){
+          var firstYarn = getYarn(newPatYarnIds[0]);
+          if(firstYarn) state.activeColor = firstYarn.hex;
+        }
+        closeModal();
         render();
         break;
       }
