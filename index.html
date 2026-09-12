@@ -320,10 +320,10 @@
   /* ---------- data layer (Firestore) ---------- */
   function defaultYarnPresets(){
     return {
-      brand: ['Red Heart','Lion Brand','Bernat','Caron','Hobbii','Scheepjes','Stylecraft','Sirdar','James C. Brett','Paintbox Yarns'],
-      material: ['Acrylic','Cotton','Wool','Acrylic/Wool Blend','Bamboo','Alpaca','Merino Wool','Polyester','Linen','Silk Blend'],
+      brand: [],
+      material: ['Acrylic','Cotton','Wool','Alpaca','Bamboo','Linen','Polyester','Blend'],
       size: ['0 - Lace','1 - Super Fine','2 - Fine','3 - Light','4 - Medium (Worsted)','5 - Bulky','6 - Super Bulky','7 - Jumbo'],
-      hookSize: ['2.25mm (B-1)','2.75mm (C-2)','3.25mm (D-3)','3.5mm (E-4)','3.75mm (F-5)','4.0mm (G-6)','4.5mm (7)','5.0mm (H-8)','5.5mm (I-9)','6.0mm (J-10)','6.5mm (K-10.5)','8.0mm (L-11)','9.0mm (M/N-13)','10.0mm (N/P-15)']
+      hookSize: ['2.25mm (B-1)','2.75mm (C-2)','3.25mm (D-3)','3.5mm (E-4)','3.75mm (F-5)','4.0mm (G-6)','4.5mm (7)','5.0mm (H-8)','5.5mm (I-9)','6.0mm (J-10)','6.5mm (K-10.5)','7.0mm','8.0mm (L-11)','9.0mm (M/N-13)','10.0mm (N/P-15)']
     };
   }
 
@@ -724,7 +724,7 @@
       html += '</div>';
     }
 
-    html += '<div class="section-title" style="margin-top:32px;"><h2>Preset Options</h2></div>';
+    html += '<div class="section-title" style="margin-top:32px;"><h2>Preset Options</h2><button class="btn btn-sm" data-action="reset-yarn-presets">Reset to defaults</button></div>';
     html += '<div class="hint" style="margin-bottom:14px;">Manage the dropdown choices offered when adding yarn to the Stash.</div>';
     YARN_PRESET_CATEGORIES.forEach(function(cat){
       html += '<div class="field" style="margin-bottom:20px;max-width:420px;"><label>'+cat[1]+'</label>';
@@ -1351,6 +1351,14 @@
         db.yarnPresets[rmCat] = (db.yarnPresets[rmCat]||[]).filter(function(o){ return o!==rmVal; });
         savePresetsDoc(db.yarnPresets);
         render();
+        break;
+      }
+      case 'reset-yarn-presets': {
+        if(confirm('Reset all preset option lists (Brand, Material, Size, Hook Size) to the app defaults? This replaces your current lists.')){
+          db.yarnPresets = defaultYarnPresets();
+          savePresetsDoc(db.yarnPresets);
+          render();
+        }
         break;
       }
       case 'quick-add-yarn-to-list': {

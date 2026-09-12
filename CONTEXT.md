@@ -309,6 +309,27 @@ ones as they come up. Nothing here is committed to until we discuss it.
 
 ## Changelog
 
+### 2026-09-12 (default preset cleanup)
+- **Brand presets emptied** (`defaultYarnPresets().brand = []`) — the
+  original seeded list (Red Heart, Lion Brand, etc.) was speculative and
+  US/UK-centric; better to let it build up from what Mia actually adds
+  rather than guess. The other three categories (material/size/hook size)
+  keep sensible defaults.
+- **Material presets deduplicated**: dropped `Merino Wool` (redundant with
+  `Wool`) and `Acrylic/Wool Blend` / `Silk Blend` (overly specific — a
+  plain `Blend` option covers mixed fibers instead).
+- **Hook size gap fixed**: the list jumped from 6.5mm straight to 8.0mm,
+  skipping the standard 7.0mm size — added.
+- **New "Reset to defaults" button** in the Yarn Stash screen's Preset
+  Options section (`reset-yarn-presets` action), since changing
+  `defaultYarnPresets()` in code only affects a *never-before-seeded*
+  account's presets doc — it can't retroactively fix one that already
+  auto-seeded the old (weird) defaults into Firestore during earlier
+  testing. This button lets that be fixed with one click instead of
+  removing each stale option by hand. It fully overwrites the current
+  lists (with confirmation), so don't use it if you've already added real
+  customizations you want to keep.
+
 ### 2026-09-12 (Yarn Stash / Project Yarn / Pattern Yarn system)
 - **New Firestore collections**: `users/{uid}/yarnStash/{yarnId}` (the
   global catalog — name, hex, optional brand/material/size/hookSize) and
