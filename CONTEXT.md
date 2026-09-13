@@ -272,25 +272,34 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
 
 ### Known bugs
 
-- [ ] **Yarn checklist color swatches not showing** — confirmed still
-      reproducing after a full data wipe (so not stale cached data), shows
-      as a thin horizontal line where the color square should be instead
-      of a filled swatch. All checklists go through the same
-      `yarnChecklistHtml()`, so needs a proper look at the actual rendered
-      DOM/CSS (e.g. via browser devtools) rather than static code reading —
-      Claude's two prior static-code passes found nothing wrong. Likely
-      candidate to check first: whether `.yarn-check-row .swatch` is
-      actually collapsing to near-zero height in some browsers/contexts
-      despite `display:flex` on the row.
-- [ ] **Bucket fill undo still occasionally fails** — the pointerup-deferred
-      fix from the second UX pass didn't fully resolve it; user has seen it
-      recur since. Needs a full audit of every code path that touches
-      `state.undoStack`/`pushUndoSnapshot`/bucket fill (including
-      interaction with the pinch-zoom pointer-tracking added later — a
-      2-finger touch landing while a bucket fill's pointerdown is
-      in-flight is untested), not just re-confirming the original fix.
-      High cost of failure (could silently wreck a near-finished pattern),
-      so treat as high priority.
+- [ ] **Yarn checklist color swatches not showing** — confirmed reproducing
+      after a full data wipe (so not stale cached data), shows as a thin
+      horizontal line where the color square should be. Two static-code
+      read-throughs found nothing wrong (`.yarn-check-row .swatch` styling
+      looks correct: 20×20px, `flex-shrink:0`, inside a `display:flex`
+      label). Applied a defensive hardening (`display:inline-block` +
+      `min-width`/`min-height` added alongside the existing `width`/
+      `height`, in case some browser context wasn't sizing it as a flex
+      item for an unclear reason) but this is a guess, not a confirmed
+      fix — if it still reproduces, the next step is inspecting the actual
+      element in browser devtools (right-click the swatch → Inspect →
+      check the Computed tab for its real width/height/background) since
+      static reading has hit its limit twice now.
+- [x] **Bucket fill undo failing intermittently** — root cause found:
+      bucket fill responded to `pointermove`, not just `pointerdown`, so
+      any drag/tremor during a "tap" (very common on touchscreens) fired
+      the fill repeatedly, each firing pushing its own undo snapshot onto
+      the stack. Pressing Undo once only popped the last (usually
+      redundant) one, making Undo look broken even though the stack itself
+      wasn't corrupted. Fixed: bucket now only fires on `pointerdown`,
+      never on `pointermove` for the rest of that gesture — a flood fill
+      isn't a drag-repeatable action the way paint/erase are. Also added:
+      a no-op guard (skip pushing an undo snapshot at all if the clicked
+      cell is already the target color, mirroring the existing paint/erase
+      guard) and a fix for a related edge case where a bucket fill
+      interrupted mid-gesture by a second touch landing (pinch start)
+      would leave its already-computed mutation stuck unpersisted in
+      memory instead of finishing normally.
 
 ### Needs live verification (not yet confirmed working on a real device)
 
@@ -468,6 +477,35 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
 - [ ] Commit with a clear message.
 
 ## Changelog
+
+### 2026-09-13 (Pass 1: bucket-fill undo root-cause fix, swatch defensive CSS)
+- **Found and fixed the real bucket-fill undo bug**: `pointermove` called
+  `paintCell` for whichever tool was active, with no exception for bucket —
+  so a flood fill fired again on every cell the pointer crossed during the
+  same gesture, not just once at `pointerdown`. A touchscreen "tap" is
+  rarely perfectly stationary, so this stacked several near-duplicate undo
+  snapshots per fill in normal use; pressing Undo once only popped the
+  last (usually a no-op re-fill of the same already-filled color), making
+  Undo look broken. Fixed by having `pointermove` early-return for the
+  bucket tool — a flood fill is a single discrete action, not something
+  that should repeat across a drag the way paint/erase strokes do.
+- Added a no-op guard to bucket fill itself (skip pushing an undo snapshot
+  at all if the clicked cell is already the target color), mirroring the
+  guard paint/erase already had.
+- Hardened the pinch-interrupts-a-bucket-fill edge case: previously, a
+  bucket fill interrupted mid-gesture by a second touch landing (pinch
+  start) would have its already-computed cell mutation left stuck in
+  memory, unpersisted and unrendered, until the pinch gesture happened to
+  end. Now it's finished (persisted) immediately when the pinch begins,
+  since a bucket fill's mutation + undo-push already completed atomically
+  in `pointerdown` — there's nothing partial to roll back the way there is
+  for an in-progress paint/erase drag (which still gets rolled back, as
+  before).
+- Applied a defensive CSS hardening to the yarn checklist's color swatch
+  (`display:inline-block` + explicit `min-width`/`min-height` alongside
+  the existing `width`/`height`) for the still-unresolved "shows as a
+  horizontal line" report — a guess, not a confirmed fix, since two
+  static-code read-throughs found nothing structurally wrong. See To Do.
 
 ### 2026-09-12 (Yarn Stash follow-up: cards, add-yarn flow, Settings screen, zoom anchoring)
 - **Yarn Stash cards redesigned**: smaller card grid (`.yarn-card-grid`/

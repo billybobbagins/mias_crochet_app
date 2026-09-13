@@ -244,7 +244,7 @@
   .preset-chip .rm2:hover{background:var(--danger);color:#fff;}
   .yarn-checklist{display:flex;flex-direction:column;gap:8px;max-height:280px;overflow:auto;margin-bottom:12px;padding-right:4px;}
   .yarn-check-row{display:flex;align-items:center;gap:10px;font-size:13.5px;}
-  .yarn-check-row .swatch{width:20px;height:20px;border-radius:6px;border:1px solid var(--border);flex-shrink:0;}
+  .yarn-check-row .swatch{display:inline-block;width:20px;height:20px;min-width:20px;min-height:20px;border-radius:6px;border:1px solid var(--border);flex-shrink:0;}
   .yarn-check-row .name{flex:1;}
   .yarn-check-row .meta{color:var(--ink-soft);font-size:12px;}
 
@@ -1375,6 +1375,7 @@
     if(row<0||col<0||row>=pattern.rows||col>=pattern.cols) return;
     var color = state.activeTool === 'erase' ? null : state.activeColor;
     if(state.activeTool === 'bucket'){
+      if(pattern.cells[row][col] === color) return;
       pushUndoSnapshot(pattern);
       bucketFill(pattern, row, col, color);
       return;
@@ -1944,9 +1945,17 @@
         var pinchPattern = getPattern(pinchProject, state.patternId);
         if(pinchPattern){
           if(state.isPainting){
-            if(state.strokeSnapshot) pinchPattern.cells = state.strokeSnapshot.cells;
+            if(state.strokeSnapshot){
+              // an in-progress paint/erase drag — roll it back rather than persist a half-finished stroke
+              pinchPattern.cells = state.strokeSnapshot.cells;
+              state.strokeSnapshot = null;
+            } else {
+              // a bucket fill already computed its mutation + pushed its undo snapshot synchronously
+              // on pointerdown (see paintCell) — it just hadn't reached its normal pointerup
+              // persist/render yet, so finish that here instead of leaving it stuck in memory.
+              touch(pinchProject); persist(pinchProject, pinchPattern);
+            }
             state.isPainting = false;
-            state.strokeSnapshot = null;
           }
           var a = state.touchPoints[touchIds[0]], b = state.touchPoints[touchIds[1]];
           state.pinch = {startDist: touchDist(a,b), startCellSize: pinchPattern.cellSize};
@@ -1991,6 +2000,7 @@
       return;
     }
     if(!state.isPainting) return;
+    if(state.activeTool === 'bucket') return; // bucket fires once per gesture, on pointerdown only — a flood fill isn't meant to repeat as you drag, and doing so was stacking redundant undo snapshots
     var el = document.elementFromPoint(e.clientX, e.clientY);
     var cell = el && el.closest ? el.closest('.cell') : null;
     if(!cell) return;
