@@ -191,9 +191,6 @@
     background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
     box-shadow:0 12px 30px rgba(0,0,0,.18);padding:14px;min-width:240px;
   }
-  .dropdown-panel.right{left:auto;right:0;}
-  .dropdown-toggle{display:inline-flex;align-items:center;gap:6px;}
-  .dropdown-toggle svg{width:14px;height:14px;}
   .palette-grid{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
   .palette-swatch{
     position:relative;width:34px;height:34px;border-radius:9px;border:2px solid var(--border);cursor:pointer;
@@ -246,6 +243,9 @@
   .preset-chip{display:inline-flex;align-items:center;gap:6px;background:var(--bg-alt);border-radius:999px;padding:6px 8px 6px 14px;font-size:13px;font-weight:600;}
   .preset-chip .rm2{cursor:pointer;color:var(--ink-soft);width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:13px;line-height:1;}
   .preset-chip .rm2:hover{background:var(--danger);color:#fff;}
+  .yarn-filter-chip{cursor:pointer;border:1px solid transparent;padding:6px 12px;}
+  .yarn-filter-chip.active{background:var(--accent);color:var(--accent-ink);}
+  .yarn-filter-chip.disabled{opacity:.35;cursor:not-allowed;pointer-events:none;}
   .yarn-pill-picker{display:flex;flex-direction:column;gap:14px;margin-bottom:12px;}
   .yarn-pill-label{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);font-weight:700;margin-bottom:6px;}
   .yarn-pill-row{
@@ -427,7 +427,6 @@
     copy: '<svg '+ICON_SVG_ATTRS+'><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
     trash: '<svg '+ICON_SVG_ATTRS+'><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/></svg>',
     gear: '<svg '+ICON_SVG_ATTRS+'><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
-    chevronDown: '<svg '+ICON_SVG_ATTRS+'><path d="m6 9 6 6 6-6"/></svg>',
     arrowRight: '<svg '+ICON_SVG_ATTRS+'><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>',
     refresh: '<svg '+ICON_SVG_ATTRS+'><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>',
     logout: '<svg '+ICON_SVG_ATTRS+'><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>',
@@ -727,7 +726,8 @@
     yarnAddReturn:null,     // {kind, checkedIds, name, rows, cols} — where to return after adding a yarn from inside a picker
     addProjectYarnReturn:null, // {patternCheckedIds} — Pattern Yarn's checked state, captured before opening "+ Add Project Yarn"
     settingsTab:'general',  // 'general' | 'yarnPresets'
-    yarnStashGroupBy:'none' // 'none' | 'brand' | 'material' | 'size' | 'hookSize'
+    yarnStashGroupBy:'none', // 'none' | 'brand' | 'material' | 'size' | 'hookSize'
+    yarnStashFilters:[]     // [{category, value}, ...] — a yarn must match every entry (AND)
   };
 
   function snapshotPattern(pattern){
@@ -882,7 +882,7 @@
     var html = '';
     html += '<div class="app-header"><div class="brand"><h1>Crochet Projects</h1></div>';
     html += '<div style="display:flex;gap:8px;">';
-    html += '<button class="btn btn-icon" data-action="open-yarnstash" title="Manage your yarn catalog">🧶 Yarn Stash</button>';
+    html += '<button class="btn btn-icon" data-action="open-yarnstash" title="Manage your yarn catalog">🧶 Stash</button>';
     html += '<button class="icon-btn" data-action="open-settings" title="Settings">'+ICONS.gear+'</button>';
     html += '<button class="icon-btn" data-action="refresh" title="Pull the latest data from the database">'+ICONS.refresh+'</button>';
     html += '<button class="icon-btn" data-action="logout" title="Log out">'+ICONS.logout+'</button>';
@@ -913,6 +913,42 @@
     return [y.brand, y.material, y.size, y.hookSize].filter(Boolean).join(' · ');
   }
 
+  // A yarn matches the active filter set only if it matches every chosen
+  // {category,value} pair — strict AND across all of them, regardless of
+  // category. In practice this also naturally prevents picking two values
+  // from the same category (a yarn only has one Material, say, so once one
+  // value is chosen the others would all yield zero matches and grey out)
+  // without needing separate same-category-OR logic.
+  function yarnMatchesFilters(y, filters){
+    return filters.every(function(f){ return (y[f.category]||'') === f.value; });
+  }
+  function yarnStashFilterWouldMatch(category, value){
+    var testFilters = state.yarnStashFilters.concat([{category:category, value:value}]);
+    return db.yarnStash.some(function(y){ return yarnMatchesFilters(y, testFilters); });
+  }
+  function renderYarnFilterSection(){
+    var anyOptions = YARN_PRESET_CATEGORIES.some(function(cat){ return (db.yarnPresets[cat[0]]||[]).length; });
+    if(!anyOptions) return '';
+    var html = '<div class="field" style="margin-bottom:16px;"><label>Filter by</label>';
+    YARN_PRESET_CATEGORIES.forEach(function(cat){
+      var opts = db.yarnPresets[cat[0]]||[];
+      if(!opts.length) return;
+      html += '<div style="margin-bottom:8px;"><div class="hint" style="margin-bottom:4px;">'+cat[1]+'</div><div class="preset-chip-row">';
+      opts.forEach(function(opt){
+        var active = state.yarnStashFilters.some(function(f){ return f.category===cat[0] && f.value===opt; });
+        var disabled = !active && !yarnStashFilterWouldMatch(cat[0], opt);
+        var cls = 'preset-chip yarn-filter-chip'+(active?' active':'')+(disabled?' disabled':'');
+        html += '<span class="'+cls+'" data-action="toggle-yarn-filter" data-category="'+cat[0]+'" data-value="'+escapeHtml(opt)+'">'+escapeHtml(opt)+'</span>';
+      });
+      html += '</div></div>';
+    });
+    if(state.yarnStashFilters.length){
+      html += '<button class="btn btn-sm" data-action="clear-yarn-filters">Clear filters</button>';
+    }
+    html += '</div>';
+    return html;
+  }
+
   function renderYarnStashView(){
     var html = '';
     html += '<div class="app-header"><div class="brand"><h1>Crochet Projects</h1></div>';
@@ -932,6 +968,8 @@
       });
       html += '</select></div>';
 
+      html += renderYarnFilterSection();
+
       function yarnCardHtml(y){
         var meta = yarnMetaLine(y);
         var h = '<div class="yarn-card" data-action="edit-yarn" data-id="'+y.id+'" title="Click to edit">';
@@ -940,8 +978,11 @@
         h += '</div>';
         return h;
       }
-      var sorted = db.yarnStash.slice().sort(function(a,b){ return a.name.localeCompare(b.name); });
-      if(state.yarnStashGroupBy === 'none'){
+      var filteredYarn = state.yarnStashFilters.length ? db.yarnStash.filter(function(y){ return yarnMatchesFilters(y, state.yarnStashFilters); }) : db.yarnStash;
+      var sorted = filteredYarn.slice().sort(function(a,b){ return a.name.localeCompare(b.name); });
+      if(!sorted.length){
+        html += '<div class="hint">No yarn matches the selected filters.</div>';
+      } else if(state.yarnStashGroupBy === 'none'){
         html += '<div class="yarn-card-grid">' + sorted.map(yarnCardHtml).join('') + '</div>';
       } else {
         var groups = {};
@@ -1231,6 +1272,7 @@
       var stitchLabel = hasStitchProgress ? 'Resume Stitch' : 'Start Stitch';
       html += '<button class="btn btn-sm btn-sage" data-action="guide-toggle" title="'+stitchLabel+' Guide">'+ICONS.arrowRight+' '+stitchLabel+'</button>';
     }
+    html += '<button class="icon-btn" data-action="open-pattern-settings" title="Pattern Settings">'+ICONS.gear+'</button>';
     html += '<button class="icon-btn" data-action="duplicate-pattern" data-id="'+pattern.id+'" title="Duplicate">'+ICONS.copy+'</button>';
     html += '<button class="icon-btn icon-btn-danger" data-action="delete-pattern" data-id="'+pattern.id+'" title="Delete">'+ICONS.trash+'</button>';
     if(editing){
@@ -1299,7 +1341,7 @@
 
   function patternSettingsFieldsHtml(draft){
     var html = '';
-    html += '<h4 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:8px;">Pattern Settings</h4>';
+    html += '<h3>Pattern Settings</h3>';
     html += '<div class="field-row"><div class="field"><label>Rows</label><input type="number" id="draft-rows" min="1" max="100" value="'+draft.rows+'"></div>';
     html += '<div class="field"><label>Columns</label><input type="number" id="draft-cols" min="1" max="100" value="'+draft.cols+'"></div></div>';
 
@@ -1390,18 +1432,9 @@
     }
     html += '</div>';
 
-    html += '</div>';
+    html += '<button class="btn btn-sm btn-danger" data-action="clear-grid" style="margin-left:auto;">Clear Grid</button>';
 
-    html += '<div class="toolbar-row">';
-    html += '<button class="btn btn-sm btn-danger" data-action="clear-grid">Clear Grid</button>';
-    html += '<div class="dropdown-wrap" style="margin-left:auto;">';
-    html += '<button class="btn btn-sm dropdown-toggle" data-action="toggle-pattern-settings">'+ICONS.gear+' Pattern Settings '+ICONS.chevronDown+'</button>';
-    if(state.patternSettingsOpen && state.patternSettingsDraft){
-      html += '<div class="dropdown-panel right">'+patternSettingsFieldsHtml(state.patternSettingsDraft)+'</div>';
-    }
     html += '</div>';
-    html += '</div>';
-
     html += '</div>';
     return html;
   }
@@ -1573,35 +1606,11 @@
     }
   }
 
-  function patternSettingsDirty(pattern){
-    var d = state.patternSettingsDraft;
-    if(!d || !pattern) return false;
-    var rowsEl = document.getElementById('draft-rows');
-    var colsEl = document.getElementById('draft-cols');
-    var rows = rowsEl ? clamp(parseInt(rowsEl.value,10)||pattern.rows,1,100) : pattern.rows;
-    var cols = colsEl ? clamp(parseInt(colsEl.value,10)||pattern.cols,1,100) : pattern.cols;
-    return rows!==pattern.rows || cols!==pattern.cols || d.aspect!==pattern.aspect ||
-      d.direction!==(pattern.stitchDirection||'horizontal') ||
-      JSON.stringify(d.numbering)!==JSON.stringify(pattern.numbering);
-  }
-  function closePatternSettingsPrompting(pattern){
-    if(pattern && patternSettingsDirty(pattern)){
-      if(!confirm('Discard unsaved pattern settings changes?')) return false;
-    }
-    state.patternSettingsOpen = false;
-    state.patternSettingsDraft = null;
-    return true;
-  }
-
   /* ================= EVENT WIRING ================= */
   document.addEventListener('click', function(e){
     if(state.colorPickerOpen && !e.target.closest('.dropdown-wrap')){
       state.colorPickerOpen = false;
       render();
-    } else if(state.patternSettingsOpen && !e.target.closest('.dropdown-wrap')){
-      var prOut = getProject(state.projectId);
-      var patOut = getPattern(prOut, state.patternId);
-      if(closePatternSettingsPrompting(patOut)) render();
     }
     var t = e.target.closest('[data-action]');
     if(!t) return;
@@ -1750,6 +1759,22 @@
         }
         break;
       }
+      case 'toggle-yarn-filter': {
+        var tfCat = t.getAttribute('data-category'), tfVal = t.getAttribute('data-value');
+        var tfIdx = -1;
+        for(var tfi=0; tfi<state.yarnStashFilters.length; tfi++){
+          if(state.yarnStashFilters[tfi].category===tfCat && state.yarnStashFilters[tfi].value===tfVal){ tfIdx = tfi; break; }
+        }
+        if(tfIdx!==-1){
+          state.yarnStashFilters.splice(tfIdx,1);
+        } else {
+          if(!yarnStashFilterWouldMatch(tfCat, tfVal)) break;
+          state.yarnStashFilters.push({category:tfCat, value:tfVal});
+        }
+        render();
+        break;
+      }
+      case 'clear-yarn-filters': state.yarnStashFilters = []; render(); break;
       case 'toggle-yarn-pill': {
         var picker = t.closest('.yarn-pill-picker');
         if(!picker) break;
@@ -1826,11 +1851,6 @@
       }
       case 'new-pattern': openNewPatternModal(); break;
       case 'open-pattern': {
-        if(state.patternSettingsOpen){
-          var prOP = getProject(state.projectId);
-          var patOP = getPattern(prOP, state.patternId);
-          if(!closePatternSettingsPrompting(patOP)) break;
-        }
         state.patternId = t.getAttribute('data-id');
         state.patternMode = 'view';
         state.guideActive = false;
@@ -1877,9 +1897,6 @@
         break;
       }
       case 'toggle-mode': {
-        var prTM = getProject(state.projectId);
-        var patTM = getPattern(prTM, state.patternId);
-        if(state.patternSettingsOpen && !closePatternSettingsPrompting(patTM)) break;
         state.patternMode = state.patternMode==='edit' ? 'view' : 'edit';
         state.guideActive = false;
         state.colorPickerOpen = false;
@@ -1897,33 +1914,23 @@
         break;
       }
       case 'toggle-color-picker': {
-        if(state.patternSettingsOpen){
-          var prTC = getProject(state.projectId);
-          var patTC = getPattern(prTC, state.patternId);
-          if(!closePatternSettingsPrompting(patTC)) break;
-        }
         state.colorPickerOpen = !state.colorPickerOpen;
         render();
         break;
       }
-      case 'toggle-pattern-settings': {
-        if(state.patternSettingsOpen){
-          var prTS = getProject(state.projectId);
-          var patTS = getPattern(prTS, state.patternId);
-          if(closePatternSettingsPrompting(patTS)) render();
-        } else {
-          var prTS2 = getProject(state.projectId);
-          var patTS2 = getPattern(prTS2, state.patternId);
-          if(patTS2){
-            state.patternSettingsDraft = {
-              rows: patTS2.rows,
-              cols: patTS2.cols,
-              numbering: JSON.parse(JSON.stringify(patTS2.numbering)),
-              aspect: patTS2.aspect,
-              direction: patTS2.stitchDirection || 'horizontal'
-            };
-            state.patternSettingsOpen = true;
-          }
+      case 'open-pattern-settings': {
+        var prTS2 = getProject(state.projectId);
+        var patTS2 = getPattern(prTS2, state.patternId);
+        if(patTS2){
+          state.patternSettingsDraft = {
+            rows: patTS2.rows,
+            cols: patTS2.cols,
+            numbering: JSON.parse(JSON.stringify(patTS2.numbering)),
+            aspect: patTS2.aspect,
+            direction: patTS2.stitchDirection || 'horizontal'
+          };
+          state.patternSettingsOpen = true;
+          openModal('<div class="modal">'+patternSettingsFieldsHtml(state.patternSettingsDraft)+'</div>');
           state.colorPickerOpen = false;
           render();
         }
@@ -2046,12 +2053,14 @@
         touch(prj4); persist(prj4, pat2);
         state.patternSettingsOpen = false;
         state.patternSettingsDraft = null;
+        closeModal();
         render();
         break;
       }
       case 'cancel-pattern-settings': {
         state.patternSettingsOpen = false;
         state.patternSettingsDraft = null;
+        closeModal();
         render();
         break;
       }

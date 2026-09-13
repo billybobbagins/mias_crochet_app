@@ -88,11 +88,11 @@ single-`localStorage`-blob approach:
   slimmer now (no more `min-height` left over from the removed
   color-swatch row).
 - Create / delete projects. Delete requires confirmation.
-- Header buttons: 🧶 Yarn Stash (text+emoji), then three icon-only square
-  buttons — ⚙ gear (Settings), a refresh-arrows icon (re-pulls the latest
-  data from Firestore), and a door-arrow icon (Log out). Converted from
-  text+emoji buttons since the row was overflowing the screen edge on a
-  phone; Yarn Stash keeps its label since it's the most-used of the four.
+- Header buttons: 🧶 Stash (text+emoji, shortened from "Yarn Stash" so the
+  whole row fits on one line on a phone same as desktop), then three
+  icon-only square buttons — ⚙ gear (Settings), a refresh-arrows icon
+  (re-pulls the latest data from Firestore), and a door-arrow icon (Log
+  out).
 - In-app header just says "Crochet Projects" (no logo icon) so it and the
   "← All Projects" back button fit on one line on a phone. No footer
   disclaimer text anymore (removed — was leftover copy from the
@@ -126,18 +126,27 @@ color to paint with. Cells still just store raw hex — this is entirely a
 picker/organization layer, not a grid-data change.
 - **Yarn Stash**: the global, per-account catalog of every yarn the user
   owns — name + color are required, brand/material/size/recommended hook
-  size are optional. Managed from its own screen (🧶 **Yarn Stash** button
-  on the home header): a compact card grid (swatch, name, details if any —
+  size are optional. Managed from its own screen (🧶 **Stash** button on
+  the home header): a compact card grid (swatch, name, details if any —
   the details line is omitted entirely rather than showing a placeholder
   when a yarn has none set) sorted alphabetically by name, with a
   **"Group by"** dropdown (None/Brand/Material/Size/Hook Size) that splits
   the grid into sub-headed groups by that field (a yarn missing it groups
-  under "Unset," sorted last) — `state.yarnStashGroupBy`. Click a card
-  anywhere to edit it (no separate Edit button — that's the only reason to
-  be on this screen). Delete lives inside the Edit Yarn modal itself (a
-  Delete button between Cancel and Save, with a confirmation warning) —
-  not on the card, so there's one deliberate path to delete rather than a
-  quick hover-icon. The dropdown preset-list management moved to
+  under "Unset," sorted last) — `state.yarnStashGroupBy`. A separate
+  **"Filter by"** section shows every preset option as a clickable chip
+  per category; a yarn must match *every* chip you've turned on
+  (`state.yarnStashFilters`, strict AND — this also naturally stops you
+  picking two values from the same category, since a yarn only has one
+  Material etc., so the second one would always yield zero matches).
+  Whenever turning on one more chip would leave zero yarn matching, that
+  chip is greyed out and inert (`yarnStashFilterWouldMatch()`) rather than
+  letting you reach a dead-end "no results" state through the filters
+  themselves. Click a card anywhere to edit it (no separate Edit button —
+  that's the only reason to be on this screen). Delete lives inside the
+  Edit Yarn modal itself (a Delete button between Cancel and Save, with a
+  confirmation warning) — not on the card, so there's one deliberate path
+  to delete rather than a quick hover-icon. The dropdown preset-list
+  management moved to
   Settings → Yarn Presets (below).
 - **Project Yarn**: a per-project *selection* from the Stash — picked when
   the project is created (alongside its name) and manageable afterward via
@@ -239,10 +248,14 @@ picker/organization layer, not a grid-data change.
   stitch guide steps through the pattern — see Stitch guide below.
 
 ### Pattern editor ("Edit" mode)
-- Two-row toolbar above the grid: Row 1 = Undo/Redo · Paint/Fill/Erase ·
-  Zoom−/Zoom+ · Pan · active-yarn button. Row 2 = Clear Grid (left) and
-  Pattern Settings (right). Two explicit rows (not a single wrapping row) so
-  it lays out predictably on a phone in landscape.
+- One-row toolbar above the grid: Undo/Redo · Paint/Fill/Line/Erase ·
+  Zoom−/Zoom+/Pan · active-yarn button · Clear Grid (pinned to the far
+  right, `margin-left:auto`, so there's a visible gap between it and the
+  active-yarn button rather than sitting right next to it). Pattern
+  Settings moved out of the toolbar entirely — see below — freeing it up
+  to fit in one row on desktop; it still wraps to two on a narrow phone
+  via the existing flex-wrap, just with more room before that happens
+  than the old two-row layout had.
 - Tools: Paint, Bucket (flood fill), **Line**, Erase — icon-only buttons.
   Line: press a start cell, drag, release on an end cell, and every cell
   along a straight line between them gets painted — including true
@@ -280,12 +293,17 @@ picker/organization layer, not a grid-data change.
   (`showToast()`, `#toast-root` — a small pill that fades in/out at the
   bottom of the screen), alongside the existing blocking `alert()`/
   `confirm()` used elsewhere.
-- **Pattern Settings** (renamed from "Grid Settings") is Save/Cancel-gated:
-  opening it drafts the current rows/cols/numbering/ratio; edits only apply
-  to the draft. Save commits (running the resize-crop logic if rows/cols
-  changed) and persists; Cancel discards. Closing it any other way (outside
-  click, the toggle button, or switching pattern/mode) with unsaved changes
-  prompts to discard or keep editing.
+- **Pattern Settings** (renamed from "Grid Settings") is now a gear-icon
+  button in the pattern header (next to Duplicate/Delete, visible in both
+  Edit and View mode) that opens a real modal, rather than a toolbar
+  dropdown. Still Save/Cancel-gated: opening it drafts the current
+  rows/cols/numbering/ratio/direction; edits only apply to the draft. Save
+  commits (running the resize-crop logic if rows/cols changed) and
+  persists; Cancel discards. Simplified when it became a modal: closing it
+  via the backdrop or Cancel now just discards silently, the same as every
+  other modal in the app, instead of the old dropdown's discard-changes
+  confirmation prompt — one less special case, consistent with how New
+  Project/Add Yarn/etc. already behave.
 - Undo/Redo: reverts/replays paint strokes, bucket fills, Clear Grid, pattern
   renames, and Pattern Settings saves that changed rows/cols (numbering and
   aspect ratio are cosmetic display prefs, so they're intentionally excluded
@@ -459,6 +477,22 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
       raised earlier, still not scoped.
 - [ ] Broader "discard unsaved changes?" sweep beyond Pattern Settings —
       raised earlier, still not scoped.
+- [ ] **Grid default size still a bit odd** — `fitCellSize()` gets close
+      but user feedback after testing is it's "not quite right yet." Left
+      as-is for now (working well enough), logged here rather than guessed
+      at again blind — needs the user's specifics on what looks off before
+      touching it further.
+- [x] **Toolbar down to one row + Pattern Settings moved to a modal**:
+      Pattern Settings is no longer a toolbar dropdown — it's a gear-icon
+      button in the pattern header (next to Duplicate/Delete) that opens a
+      real modal with the same fields. Clear Grid moved into the same row
+      as the rest of the toolbar, pinned to the far right
+      (`margin-left:auto`) so there's a gap between it and the active-yarn
+      button instead of sitting flush against it. This freed up enough
+      space that the toolbar is one row on desktop (was always two), still
+      wrapping to two on a narrow phone via the existing flex-wrap. See the
+      "Pattern editor" section above for the toolbar shape and the
+      "Pattern Settings" bullet for the modal's simplified close behavior.
 
 ### Planned — new features
 
@@ -487,6 +521,25 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
       concrete use case defined (e.g. a reference photo attached to a
       project or pattern) — needs scoping before building, not committed
       to yet.
+- [x] **Filter the yarn list by category** — added alongside Group by on
+      the Yarn Stash screen: chip-based, multiple categories/values at
+      once, strict AND, with a chip greyed out the moment turning it on
+      would leave zero yarn matching (`yarnStashFilterWouldMatch()`).
+- [ ] **Circle drawing tool**: press to set the center, drag out to set the
+      radius, live preview of the cells that would get painted, release to
+      commit — alongside Paint/Bucket/Line/Erase. Not yet built.
+- [ ] **Replace pattern tabs with pattern cards + a dedicated per-pattern
+      page**: opening a project currently shows tabs (today's active tab
+      is genuinely hard to see until you interact with something — no
+      visible "you are here" state on load). Instead: opening a project
+      shows a card grid of its patterns (title, grid size, yarn-color
+      dots, ideally a small rendered thumbnail); clicking a card opens a
+      dedicated pattern page (everything currently below the tabs) with
+      its own "← *(project name)*" back button (styled like today's
+      "← All Projects"), and the header row also picks up the Rename
+      pencil, grid-size text, Project Yarn button, and Delete Project
+      button that make sense there once tabs are gone. Not yet built —
+      the bigger of the two remaining new-feature asks this round.
 
 ### Shipped
 
@@ -556,6 +609,46 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
 - [ ] Commit with a clear message.
 
 ## Changelog
+
+### 2026-09-13 (Pass 7a: header row fix, yarn filtering, Pattern Settings → modal, one-row toolbar)
+- **Header fits one row on mobile**: shortened "Yarn Stash" to "Stash" on
+  the home header button — combined with last round's icon-only Settings/
+  Refresh/Log out, the row is short enough to stop wrapping on a phone.
+- **Yarn Stash "Filter by"**: added alongside Group by — a chip per preset
+  option, multiple selectable, strict AND across every chip turned on
+  (`state.yarnStashFilters`, `yarnMatchesFilters()`). A chip that would
+  leave zero yarn matching if turned on is greyed out and inert
+  (`yarnStashFilterWouldMatch()`, checked against the *would-be* combined
+  filter set, not just its own category) — this is also what stops
+  picking two values from the same category in practice, without needing
+  separate same-category-OR logic: a yarn only has one Material, so a
+  second Material chip always fails the "would still match something"
+  check once the first is active.
+- **Pattern Settings is now a modal, not a toolbar dropdown**: a gear-icon
+  button in the pattern header (`open-pattern-settings` action) opens
+  `patternSettingsFieldsHtml()`'s same fields inside a real
+  `openModal()` call instead of a `.dropdown-panel`. This let a chunk of
+  now-unreachable code get deleted: `patternSettingsDirty()` and
+  `closePatternSettingsPrompting()` existed only to intercept an
+  outside-click/toggle-button close on the old dropdown and prompt to
+  discard changes — impossible to trigger anymore since a real modal's
+  backdrop already blocks interaction with the rest of the page while
+  open. Closing via Cancel or the backdrop now just discards silently,
+  matching every other modal in the app (New Project, Add Yarn, etc.)
+  rather than being the one special case with a confirm-to-discard prompt.
+  Also removed the `open-pattern`/`toggle-mode`/`toggle-color-picker`
+  guards that used to call `closePatternSettingsPrompting()` first (same
+  reason — unreachable once the settings UI can't coexist on-screen with
+  those actions), and the now-dead `.dropdown-toggle`/`.dropdown-panel.right`
+  CSS and unused `ICONS.chevronDown`.
+- **Toolbar is one row on desktop** (was always two): Clear Grid moved
+  into the main toolbar row, pinned right (`margin-left:auto`) for a
+  visible gap from the active-yarn button, now that Pattern Settings no
+  longer needs its own row.
+- Logged (not fixed): grid default sizing still isn't quite right per
+  user testing feedback — needs specifics before touching `fitCellSize()`
+  again rather than guessing blind a second time.
+- Not verified live in a browser this session.
 
 ### 2026-09-13 (Pass 6: yarn grouping + straight-line tool)
 - **Yarn Stash "Group by"**: implemented grouping on the main Yarn Stash
