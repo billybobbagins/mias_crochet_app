@@ -212,7 +212,10 @@
   .field-row{display:flex;gap:8px;}
   .field-row .field{flex:1;}
 
-  .grid-scroll{overflow:auto;max-width:100%;padding:6px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);}
+  .grid-scroll{
+    overflow:auto;max-width:100%;max-height:70vh;padding:6px;background:var(--card);
+    border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);
+  }
   .grid-wrapper{
     display:grid;gap:0;width:max-content;user-select:none;touch-action:none;
     border-top:1px solid var(--grid-line);border-left:1px solid var(--grid-line);
@@ -347,7 +350,7 @@
     return !!(devAccount && auth.currentUser && auth.currentUser.email === devAccount.email);
   }
   var LEGACY_LOCAL_KEY = 'miasCrochetApp.v1';
-  var CELL_SIZE_MIN = 12, CELL_SIZE_MAX = 44;
+  var CELL_SIZE_MIN = 4, CELL_SIZE_MAX = 44;
   var ASPECT_PRESETS = [
     {label:'Taller (2:3)', value:0.6667},
     {label:'Tall (5:6)', value:0.8333},
@@ -364,6 +367,28 @@
     });
   }
   function clamp(n,min,max){ return Math.max(min, Math.min(max, n)); }
+  // Picks a cell size that fits the pattern's full width into roughly the
+  // available viewport width, so a pattern starts fully visible with no
+  // horizontal scroll needed — used at creation time and on grid resize.
+  // Only considers width (cols), never rows: height is left to naturally
+  // follow from that width and the aspect ratio, per design; a tall result
+  // scrolls within the height-capped .grid-scroll viewport instead.
+  function fitCellSize(cols, aspect){
+    var availableWidth = Math.max(200, (window.innerWidth||800) - 80);
+    var approxLabelPx = 24;
+    var perCol = (availableWidth - approxLabelPx*2) / Math.max(1,cols);
+    var raw = perCol / (aspect||1);
+    return clamp(Math.round(raw), CELL_SIZE_MIN, CELL_SIZE_MAX);
+  }
+  // At small effective pixel sizes a number in every single row/column
+  // label would overlap or blur into noise, so only every Nth number is
+  // shown (still always the first and last) — the same way a graph's axis
+  // ticks thin out as you zoom out.
+  function labelStepForSize(px){
+    if(px >= 12) return 1;
+    if(px >= 6) return 5;
+    return 10;
+  }
   function fmtDate(iso){
     try{
       var d = new Date(iso);
@@ -1334,6 +1359,10 @@
     var cellW = Math.round(pattern.cellSize * pattern.aspect);
     var cellH = pattern.cellSize;
     var lblSize = clamp(pattern.cellSize, 20, 30);
+    var colStep = labelStepForSize(cellW);
+    var rowStep = labelStepForSize(cellH);
+    function showColLabel(cd){ return cd===1 || cd===pattern.cols || cd % colStep === 0; }
+    function showRowLabel(rd){ return rd===1 || rd===pattern.rows || rd % rowStep === 0; }
 
     var guide = (!editable && state.guideActive);
     var guideVertical = guide && isVerticalStitch(pattern);
@@ -1354,7 +1383,7 @@
       var cd = colDisplay(pattern,j);
       var hi = isHighlighted(cd,'top',pattern.numbering.oddH);
       var colGuideClass = guideVertical ? (j===currentColIdx ? ' line-current' : ' line-dim') : '';
-      html += '<div class="lbl'+(hi?' lbl-hi':'')+colGuideClass+'">'+cd+'</div>';
+      html += '<div class="lbl'+(hi?' lbl-hi':'')+colGuideClass+'">'+(showColLabel(cd)?cd:'')+'</div>';
     }
     html += '<div class="corner"></div>';
 
@@ -1365,14 +1394,14 @@
       var hiR = isHighlighted(rd,'right',pattern.numbering.oddV);
       var rowGuideClass = (guide && !guideVertical) ? (i===currentRowIdx ? ' line-current' : ' line-dim') : '';
 
-      html += '<div class="lbl'+(hiL?' lbl-hi':'')+rowGuideClass+'">'+rd+'</div>';
+      html += '<div class="lbl'+(hiL?' lbl-hi':'')+rowGuideClass+'">'+(showRowLabel(rd)?rd:'')+'</div>';
       for(var jj=0; jj<pattern.cols; jj++){
         var hex = pattern.cells[i][jj];
         var blank = !hex;
         var cellGuideClass = guideVertical ? (jj===currentColIdx ? ' line-current' : ' line-dim') : rowGuideClass;
         html += '<div class="cell'+(blank?' cell-blank':'')+cellGuideClass+'" data-row="'+i+'" data-col="'+jj+'"'+(hex?' style="background:'+hex+'"':'')+'></div>';
       }
-      html += '<div class="lbl'+(hiR?' lbl-hi':'')+rowGuideClass+'">'+rd+'</div>';
+      html += '<div class="lbl'+(hiR?' lbl-hi':'')+rowGuideClass+'">'+(showRowLabel(rd)?rd:'')+'</div>';
     }
 
     // bottom row
@@ -1381,7 +1410,7 @@
       var cd2 = colDisplay(pattern,j2);
       var hi2 = isHighlighted(cd2,'bottom',pattern.numbering.oddH);
       var colGuideClass2 = guideVertical ? (j2===currentColIdx ? ' line-current' : ' line-dim') : '';
-      html += '<div class="lbl'+(hi2?' lbl-hi':'')+colGuideClass2+'">'+cd2+'</div>';
+      html += '<div class="lbl'+(hi2?' lbl-hi':'')+colGuideClass2+'">'+(showColLabel(cd2)?cd2:'')+'</div>';
     }
     html += '<div class="corner"></div>';
 
@@ -1451,7 +1480,7 @@
       id: uid(),
       name: name || 'Untitled Pattern',
       rows: rows, cols: cols,
-      cellSize: clamp(Math.round(420/Math.max(rows,cols)), 12, 30),
+      cellSize: fitCellSize(cols, 1),
       aspect: 1,
       cells: blankCells(rows, cols),
       numbering: {flipV:false, flipH:false, oddV:'left', oddH:'top'},
@@ -1955,7 +1984,7 @@
           pushUndoSnapshot(pat2);
           pat2.cells = resizeCells(pat2.cells, pat2.rows, pat2.cols, nr, nc);
           pat2.rows = nr; pat2.cols = nc;
-          pat2.cellSize = clamp(Math.round(420/Math.max(nr,nc)), 12, 30);
+          pat2.cellSize = fitCellSize(nc, state.patternSettingsDraft.aspect);
         }
         pat2.numbering = state.patternSettingsDraft.numbering;
         pat2.aspect = state.patternSettingsDraft.aspect;

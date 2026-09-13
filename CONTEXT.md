@@ -206,13 +206,25 @@ picker/organization layer, not a grid-data change.
   Settings (shrinking prompts a confirmation since it discards out-of-bounds
   cells).
 - Cell zoom (toolbar +/− buttons, pinch-to-zoom on touch, mouse-wheel/
-  trackpad over the grid on desktop, 12–44px) and a Cell Height:Width Ratio
+  trackpad over the grid on desktop, 4–44px) and a Cell Height:Width Ratio
   preset dropdown (Taller/Tall/Square/Wide/Wider) to approximate real stitch
   proportions, since crochet stitches aren't square. Every zoom method
   keeps whatever point you're zoomed in on (cursor position, pinch
   midpoint, or the viewport center for the +/− buttons) visually fixed in
   place (`zoomPatternAroundPoint()`) instead of always anchoring to the
   grid's top-left corner.
+- The grid's viewing area (`.grid-scroll`) is height-capped (`70vh`)
+  rather than growing without limit, so it acts as a fixed viewport you
+  scroll/pan within (native browser scroll — mouse drag via the Pan tool,
+  touch drag, or scrollbars) instead of pushing the whole page down as a
+  pattern gets tall. New patterns (and any Pattern Settings resize) pick
+  their starting cell size via `fitCellSize(cols, aspect)`, sized so the
+  full pattern width fits the actual device width — no horizontal scroll
+  needed at the default zoom level, for patterns that reasonably can. Row/
+  column numbers thin out adaptively as cells shrink (every number, then
+  every 5th, then every 10th — always still showing the first and last)
+  via `labelStepForSize()`, the way a graph's axis ticks thin out when you
+  zoom out.
 - Row/column numbering: direction can be flipped (top→bottom vs
   bottom→top, left→right vs right→left), and which side highlights
   odd-numbered rows/columns is configurable (matches how graphgan patterns
@@ -398,23 +410,31 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
 - [x] **Danger Zone now only shows for the Developer account** — gated by
       `isDevAccount()`, comparing `auth.currentUser.email` against the
       "dev" entry in `LOGIN_ACCOUNTS`.
-- [ ] **Grid viewport/zoom rearchitecture**: right now the grid's rendered
-      size just grows with zoom and the browser scrolls it — width caps at
-      the screen but height keeps growing unbounded. Wanted instead: the
-      grid defaults to fitting the screen's width (full pattern width
-      visible, no horizontal scroll needed at 100%), with height following
-      from that width and the locked cell aspect ratio. The *viewing area*
-      (viewport) should then stay a fixed on-screen size, with zoom/pan
-      moving and scaling the grid *within* that fixed viewport (like a
-      map), rather than the viewport itself growing — and zooming out
-      should be able to shrink the grid smaller than the screen width too.
-      Also: when zoomed out far enough that row/column numbers would be
-      unreadably small, thin them out adaptively (every 5th number, then
-      every 10th, etc.) the way axis ticks scale on a graph. This is a
-      genuine rendering-architecture change (fixed-size viewport with
-      content that scales/pans inside it, vs. today's "container grows to
-      fit content, browser scrollbars appear as needed"), not a small
-      tweak — needs real design thought before touching.
+- [x] **Grid viewport/zoom rearchitecture** — implemented via a
+      *conservative* approach rather than a full custom-canvas rewrite (see
+      the Pass 5 changelog entry for the reasoning): `.grid-scroll` is now
+      height-capped (`max-height:70vh`) instead of growing unbounded, so it
+      behaves as a fixed-size viewport the grid scrolls/pans within using
+      the browser's existing (already-proven) native scroll — no new pan
+      mechanism. New patterns default their `cellSize` to
+      `fitCellSize(cols, aspect)`, which sizes cells so the full pattern
+      width fits the actual device width at creation time (was a fixed
+      "assume ~420px" guess); a Pattern Settings resize does the same.
+      Lowered `CELL_SIZE_MIN` from 12 to 4 so very wide/tall patterns can
+      still shrink small enough to mostly or fully fit. Row/column numbers
+      thin out adaptively as cells shrink (every number down to 12px cells,
+      every 5th from 6-11px, every 10th below that — always still showing
+      the first and last) via `labelStepForSize()`, the same way a graph's
+      axis ticks thin out when you zoom out. **Not implemented**: true
+      transform-based canvas panning/zooming (content scaling within a
+      viewport via CSS `transform`, independent of native scroll) — the
+      literal "like a map" framing. That would need custom drag-panning to
+      replace native touch/mouse scroll everywhere, a much larger and
+      riskier change; this conservative version produces the same
+      practical outcomes (fixed viewing area, pan within it, shrink below
+      screen width, adaptive labels) using mechanics that were already
+      working and tested. Revisit as its own pass if the native-scroll
+      version doesn't feel right in practice.
 - [x] **"Start Stitch" → "Resume Stitch"** once `pattern.guidePos > 0`;
       guide bar's resumed-position note reworded to "Continuing from last
       session."
@@ -521,6 +541,56 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
 - [ ] Commit with a clear message.
 
 ## Changelog
+
+### 2026-09-13 (Pass 5: grid viewport/zoom rearchitecture — conservative version)
+- **Design decision, made without checking back first** (auto-run pass,
+  documenting the reasoning here instead): implemented the requested
+  outcomes — a fixed-size viewing area, fit-to-width default, ability to
+  zoom smaller than the screen, adaptive label thinning — using the
+  existing native-scroll architecture rather than the literal "content
+  scales/pans inside a fixed viewport like a map" framing, which would
+  need custom transform-based drag-panning to replace native touch/mouse
+  scroll everywhere (a much larger, riskier change touching code that
+  already works and is already fairly well exercised). The chosen approach
+  gets the same practical behavior with far less blast radius. Flagged in
+  To Do as the "conservative version" in case the native-scroll feel
+  doesn't match what was pictured, with the fuller rewrite as a named
+  follow-up rather than something silently dropped.
+- **`.grid-scroll` is now height-capped** (`max-height:70vh`, was
+  unbounded) — acts as a fixed viewport the grid scrolls within instead of
+  growing the whole page vertically as a pattern gets tall.
+- **New `fitCellSize(cols, aspect)`**: sizes cells so a pattern's full
+  width fits the actual device width (`window.innerWidth`), replacing the
+  old flat "assume ~420px available" heuristic. Used at pattern creation
+  and by Pattern Settings' resize (previously both hardcoded the same
+  420px guess independently).
+- **Lowered `CELL_SIZE_MIN` from 12 to 4** — needed so very wide/tall
+  patterns can actually shrink small enough to fit or nearly fit, and
+  applies uniformly to the fit computation, zoom buttons, wheel, and pinch
+  (one shared constant, not a separate floor just for fitting).
+- **Adaptive row/column label thinning**: new `labelStepForSize(px)` —
+  every number shown at ≥12px cells, every 5th from 6–11px, every 10th
+  below that (always still showing the first and last row/column
+  regardless). Root cause of "numbers become unreadable when zoomed out"
+  made concrete: a row/column's *label* box is only as wide as the
+  fixed 20-30px label column, but its *height* (for a row label) or
+  *width* (for a column label) matches that row/column's own cell
+  size — so at a 4px cell size, a row's label is 4px tall regardless of
+  the label column being 20-30px wide, nowhere near enough room for an
+  11px-tall number. Thinning which numbers render (not their box size)
+  is what relieves that.
+- Considered and rejected centering short patterns horizontally in
+  `.grid-scroll` (`display:flex;justify-content:center`) — plain
+  (non-`safe`) `justify-content:center` on an overflowing flex container
+  has a real cross-browser history of clipping the scrollable start edge,
+  which would regress the common case (a pattern wider than the viewport)
+  for a cosmetic nicety on the uncommon one (a pattern narrower than it).
+  Left top/left-anchored instead.
+- Not verified live in a browser this session — sanity-checked
+  `fitCellSize`/`labelStepForSize`'s output numbers against a phone-width
+  (390px) and desktop-width (1400px) viewport in an isolated Node
+  simulation instead, since visual/gesture verification isn't possible
+  here.
 
 ### 2026-09-13 (Pass 4: pill-based yarn picker)
 - **Replaced the checkbox list with pills** in `yarnChecklistHtml()`:
