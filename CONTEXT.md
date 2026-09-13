@@ -129,7 +129,10 @@ picker/organization layer, not a grid-data change.
   size are optional. Managed from its own screen (🧶 **Yarn Stash** button
   on the home header): a compact card grid (swatch, name, details if any —
   the details line is omitted entirely rather than showing a placeholder
-  when a yarn has none set) sorted alphabetically by name. Click a card
+  when a yarn has none set) sorted alphabetically by name, with a
+  **"Group by"** dropdown (None/Brand/Material/Size/Hook Size) that splits
+  the grid into sub-headed groups by that field (a yarn missing it groups
+  under "Unset," sorted last) — `state.yarnStashGroupBy`. Click a card
   anywhere to edit it (no separate Edit button — that's the only reason to
   be on this screen). Delete lives inside the Edit Yarn modal itself (a
   Delete button between Cancel and Save, with a confirmation warning) —
@@ -240,7 +243,14 @@ picker/organization layer, not a grid-data change.
   Zoom−/Zoom+ · Pan · active-yarn button. Row 2 = Clear Grid (left) and
   Pattern Settings (right). Two explicit rows (not a single wrapping row) so
   it lays out predictably on a phone in landscape.
-- Tools: Paint, Bucket (flood fill), Erase — icon-only buttons. **Pan** is a
+- Tools: Paint, Bucket (flood fill), **Line**, Erase — icon-only buttons.
+  Line: press a start cell, drag, release on an end cell, and every cell
+  along a straight line between them gets painted — including true
+  diagonals, via Bresenham's line algorithm (`bresenhamLine()`), not just
+  same-row/same-column. Shows a live outline preview while dragging
+  (`updateLinePreview()`) without touching `pattern.cells` until release,
+  the same "compute now, commit/persist at pointerup" pattern Bucket
+  follows. Needs a yarn selected, same as Paint/Bucket. **Pan** is a
   separate hand-icon toggle next to the zoom buttons rather than grouped
   with the paint tools, since it plays a different role (viewport, not
   drawing) — click it to scroll a grid wider/taller than the viewport,
@@ -457,14 +467,19 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
       Project, New Pattern): an "Available" pool of pills and a "Selected"
       pool — clicking a pill moves it between them, so what's chosen is
       always visibly separated from what isn't.
-- [ ] **Filter/group the yarn list** by category (brand, size, etc.) in the
-      pickers, with the user able to choose how the list is organized/
-      displayed. Not yet scoped — depends somewhat on the pill UI above.
-- [ ] **Straight-line drawing tool**: click two points on the grid and fill
-      every cell between them, alongside Paint/Bucket/Erase. Should ideally
-      handle diagonals (not just same-row/same-column lines) — likely a
-      Bresenham-line-style algorithm to pick which cells a diagonal line
-      "passes through." Not yet scoped.
+- [x] **Group the yarn list by category** — implemented on the Yarn Stash
+      screen specifically (a "Group by" dropdown: None/Brand/Material/
+      Size/Hook Size, `state.yarnStashGroupBy`, sub-headed card groups),
+      not inside the pill pickers themselves — see the Pass 6 changelog
+      entry for why. A yarn missing the chosen field groups under "Unset,"
+      sorted last.
+- [x] **Straight-line drawing tool**: a new Line tool (alongside Paint/
+      Bucket/Erase) — press on a start cell, drag, release on an end cell,
+      and every cell the line passes through gets painted, including true
+      diagonals (`bresenhamLine()`). Shows a live preview outline while
+      dragging (`updateLinePreview()`, pure DOM/CSS, not committed to
+      `pattern.cells` until release) and needs a yarn selected like Paint/
+      Bucket do.
 - [ ] **Image upload** — user asked whether Firebase supports this: yes,
       via **Firebase Storage** (a separate product from Firestore, same
       Firebase project, would need its own SDK include and its own
@@ -541,6 +556,43 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
 - [ ] Commit with a clear message.
 
 ## Changelog
+
+### 2026-09-13 (Pass 6: yarn grouping + straight-line tool)
+- **Yarn Stash "Group by"**: implemented grouping on the main Yarn Stash
+  catalog screen only, not inside the pill pickers (Project Yarn, Pattern
+  Yarn, etc.) — those already fully re-render on every state change
+  through the normal `render()` cycle, so adding a `<select>` there was
+  simple; doing the same live-regrouping *inside a modal* without a full
+  re-render would have needed real new plumbing (the modals currently
+  patch the DOM directly for pill toggling rather than re-rendering).
+  Scoped it to the one place it was cheap to do well rather than force a
+  partial version everywhere. `state.yarnStashGroupBy` (None/Brand/
+  Material/Size/Hook Size); groups sorted alphabetically with "Unset"
+  (yarn missing that field) always last.
+- **New Line tool**: added to the toolbar's tool group (Paint/Bucket/
+  Line/Erase). `bresenhamLine(r0,c0,r1,c1)` — standard Bresenham's line
+  algorithm — returns every cell a straight line between two points
+  passes through, diagonals included (verified against horizontal,
+  vertical, 45°, shallow, steep, single-point, and reversed-direction
+  cases in an isolated Node simulation, since live dragging can't be
+  tested here). Follows the same "compute now, commit at pointerup"
+  shape Bucket already established: `pointerdown` snapshots undo state
+  and records the start cell; `pointermove` only updates a visual preview
+  (`updateLinePreview()`/`clearLinePreview()`, CSS outline via
+  `.cell-line-preview`, no `pattern.cells` mutation yet); `pointerup`/
+  `pointercancel`/document-`pointerleave` call the new `commitLine()`,
+  which paints the final path and lets the existing `endPaint()` persist
+  and render it. Needs a yarn selected, same guard as Paint/Bucket.
+  Also hardened the pinch-interrupts-a-gesture handling (already updated
+  for bucket in Pass 1) for this third case: an in-progress Line drag
+  interrupted by a second touch landing (pinch start) is abandoned
+  (preview cleared, the undo snapshot pushed at its `pointerdown` popped
+  back off) rather than partially persisted, since nothing was actually
+  painted yet to keep.
+- Not verified live in a browser this session — the Bresenham path logic
+  was checked in isolation (see above), but not the actual drag gesture,
+  live preview rendering, or interaction with the grid's pointer-event
+  plumbing.
 
 ### 2026-09-13 (Pass 5: grid viewport/zoom rearchitecture — conservative version)
 - **Design decision, made without checking back first** (auto-run pass,
