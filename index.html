@@ -231,7 +231,7 @@
   .pattern-mode-view .cell{cursor:default;}
   .cell.line-dim{opacity:.35;}
   .lbl.line-dim{opacity:.35;}
-  .cell.cell-line-preview{outline:2px solid var(--sage);outline-offset:-2px;}
+  .cell.cell-shape-preview{outline:2px solid var(--sage);outline-offset:-2px;}
 
   .guide-bar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 14px;box-shadow:var(--shadow);}
   .guide-bar .row-indicator{font-weight:800;font-size:15px;min-width:110px;}
@@ -368,6 +368,8 @@
     });
   }
   function clamp(n,min,max){ return Math.max(min, Math.min(max, n)); }
+  var TOOLS_NEEDING_COLOR = ['paint','bucket','line','circle'];
+  function toolNeedsColor(tool){ return TOOLS_NEEDING_COLOR.indexOf(tool)!==-1; }
   // Picks a cell size that fits the pattern's full width into roughly the
   // available viewport width, so a pattern starts fully visible with no
   // horizontal scroll needed — used at creation time and on grid resize.
@@ -430,7 +432,8 @@
     arrowRight: '<svg '+ICON_SVG_ATTRS+'><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>',
     refresh: '<svg '+ICON_SVG_ATTRS+'><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>',
     logout: '<svg '+ICON_SVG_ATTRS+'><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>',
-    line: '<svg '+ICON_SVG_ATTRS+'><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M7.5 16.5l9-9"/></svg>'
+    line: '<svg '+ICON_SVG_ATTRS+'><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M7.5 16.5l9-9"/></svg>',
+    circle: '<svg '+ICON_SVG_ATTRS+'><circle cx="12" cy="12" r="8"/></svg>'
   };
 
   /* ---------- data layer (Firestore) ---------- */
@@ -723,6 +726,8 @@
     pinch:null,             // {startDist, startCellSize} while a 2-finger pinch is in progress
     lineStart:null,         // {row,col} — anchor point while dragging the Line tool
     lineCurrent:null,       // {row,col} — current pointer position while dragging the Line tool
+    circleCenter:null,      // {row,col} — anchor point while dragging the Circle tool
+    circleCurrent:null,     // {row,col} — current pointer position while dragging the Circle tool
     yarnAddReturn:null,     // {kind, checkedIds, name, rows, cols} — where to return after adding a yarn from inside a picker
     addProjectYarnReturn:null, // {patternCheckedIds} — Pattern Yarn's checked state, captured before opening "+ Add Project Yarn"
     settingsTab:'general',  // 'general' | 'yarnPresets'
@@ -795,6 +800,28 @@
       var e2 = 2*err;
       if(e2 > -dc){ err -= dc; r += sr; }
       if(e2 < dr){ err += dr; c += sc; }
+    }
+    return cells;
+  }
+
+  // Every cell inside a filled circle centered on (centerRow,centerCol)
+  // whose edge passes through (endRow,endCol) — measured in on-screen
+  // pixels (using the pattern's own cellSize/aspect), not raw row/column
+  // distance, so the result looks like a true circle rather than an oval
+  // when the cell aspect ratio isn't 1:1.
+  function circleCells(pattern, centerRow, centerCol, endRow, endCol){
+    var cellW = pattern.cellSize * pattern.aspect;
+    var cellH = pattern.cellSize;
+    var dxPx = (endCol-centerCol)*cellW, dyPx = (endRow-centerRow)*cellH;
+    var radiusPx = Math.sqrt(dxPx*dxPx + dyPx*dyPx);
+    if(radiusPx < 1) return [[centerRow,centerCol]];
+    var rowSpan = Math.ceil(radiusPx/cellH), colSpan = Math.ceil(radiusPx/cellW);
+    var cells = [];
+    for(var r=Math.max(0,centerRow-rowSpan); r<=Math.min(pattern.rows-1,centerRow+rowSpan); r++){
+      for(var c=Math.max(0,centerCol-colSpan); c<=Math.min(pattern.cols-1,centerCol+colSpan); c++){
+        var px=(c-centerCol)*cellW, py=(r-centerRow)*cellH;
+        if(px*px+py*py <= radiusPx*radiusPx) cells.push([r,c]);
+      }
     }
     return cells;
   }
@@ -1395,11 +1422,10 @@
     html += '</div><div class="toolbar-sep"></div>';
 
     html += '<div class="toolbar-group">';
-    var tools = [['paint',ICONS.paint,'Paint'],['bucket',ICONS.bucket,'Fill'],['line',ICONS.line,'Line'],['erase',ICONS.erase,'Erase']];
+    var tools = [['paint',ICONS.paint,'Paint'],['bucket',ICONS.bucket,'Fill'],['line',ICONS.line,'Line'],['circle',ICONS.circle,'Circle'],['erase',ICONS.erase,'Erase']];
     var noYarnSelected = !state.activeColor;
     tools.forEach(function(tt){
-      var needsColor = (tt[0]==='paint' || tt[0]==='bucket' || tt[0]==='line');
-      var greyed = needsColor && noYarnSelected;
+      var greyed = toolNeedsColor(tt[0]) && noYarnSelected;
       var title = greyed ? tt[2]+' (select a yarn first)' : tt[2];
       html += '<button class="icon-btn'+(state.activeTool===tt[0]?' active':'')+(greyed?' icon-btn-greyed':'')+'" data-action="set-tool" data-tool="'+tt[0]+'" title="'+title+'">'+tt[1]+'</button>';
     });
@@ -1905,7 +1931,7 @@
       }
       case 'set-tool': {
         var newTool = t.getAttribute('data-tool');
-        if((newTool==='paint' || newTool==='bucket' || newTool==='line') && !state.activeColor){
+        if(toolNeedsColor(newTool) && !state.activeColor){
           showToast('Select a yarn first');
           break;
         }
@@ -2198,14 +2224,17 @@
               // an in-progress paint/erase drag — roll it back rather than persist a half-finished stroke
               pinchPattern.cells = state.strokeSnapshot.cells;
               state.strokeSnapshot = null;
-            } else if(state.lineStart){
-              // a Line drag in progress — it's only a visual preview until pointerup commits it
-              // (see commitLine()), so there's nothing painted to keep; discard the undo snapshot
-              // pushed at its pointerdown too, since nothing actually changed.
+            } else if(state.lineStart || state.circleCenter){
+              // a Line/Circle drag in progress — it's only a visual preview until pointerup
+              // commits it (see commitLine()/commitCircle()), so there's nothing painted to
+              // keep; discard the undo snapshot pushed at its pointerdown too, since nothing
+              // actually changed.
               state.undoStack.pop();
-              clearLinePreview();
+              clearShapePreview();
               state.lineStart = null;
               state.lineCurrent = null;
+              state.circleCenter = null;
+              state.circleCurrent = null;
             } else {
               // a bucket fill already computed its mutation + pushed its undo snapshot synchronously
               // on pointerdown (see paintCell) — it just hadn't reached its normal pointerup
@@ -2228,7 +2257,7 @@
     if(state.patternMode !== 'edit') return;
     if(state.activeTool === 'pan') return;
     if(state.pinch) return;
-    if((state.activeTool==='paint' || state.activeTool==='bucket' || state.activeTool==='line') && !state.activeColor){
+    if(toolNeedsColor(state.activeTool) && !state.activeColor){
       showToast('Select a yarn first');
       return;
     }
@@ -2243,6 +2272,14 @@
       state.lineStart = {row:lr, col:lc};
       state.lineCurrent = {row:lr, col:lc};
       updateLinePreview(state.lineStart, state.lineCurrent);
+      return;
+    }
+    if(state.activeTool === 'circle'){
+      var cr = parseInt(cell.getAttribute('data-row'),10), cc = parseInt(cell.getAttribute('data-col'),10);
+      pushUndoSnapshot(pattern);
+      state.circleCenter = {row:cr, col:cc};
+      state.circleCurrent = {row:cr, col:cc};
+      updateCirclePreview(pattern, state.circleCenter, state.circleCurrent);
       return;
     }
     if(state.activeTool !== 'bucket'){
@@ -2279,26 +2316,40 @@
       updateLinePreview(state.lineStart, state.lineCurrent);
       return;
     }
+    if(state.activeTool === 'circle'){
+      if(!state.circleCenter) return;
+      var project2 = getProject(state.projectId);
+      var pattern2 = getPattern(project2, state.patternId);
+      if(!pattern2) return;
+      state.circleCurrent = {row:parseInt(cell.getAttribute('data-row'),10), col:parseInt(cell.getAttribute('data-col'),10)};
+      updateCirclePreview(pattern2, state.circleCenter, state.circleCurrent);
+      return;
+    }
     var project = getProject(state.projectId);
     var pattern = getPattern(project, state.patternId);
     if(!pattern) return;
     paintCell(project, pattern, parseInt(cell.getAttribute('data-row'),10), parseInt(cell.getAttribute('data-col'),10));
   });
-  function clearLinePreview(){
+  function clearShapePreview(){
     var wrapper = document.getElementById('grid-wrapper');
     if(!wrapper) return;
-    var marked = wrapper.querySelectorAll('.cell-line-preview');
-    for(var i=0;i<marked.length;i++) marked[i].classList.remove('cell-line-preview');
+    var marked = wrapper.querySelectorAll('.cell-shape-preview');
+    for(var i=0;i<marked.length;i++) marked[i].classList.remove('cell-shape-preview');
+  }
+  function markShapePreview(cellsList){
+    clearShapePreview();
+    var wrapper = document.getElementById('grid-wrapper');
+    if(!wrapper) return;
+    cellsList.forEach(function(rc){
+      var cellEl = wrapper.querySelector('.cell[data-row="'+rc[0]+'"][data-col="'+rc[1]+'"]');
+      if(cellEl) cellEl.classList.add('cell-shape-preview');
+    });
   }
   function updateLinePreview(start, current){
-    clearLinePreview();
-    var wrapper = document.getElementById('grid-wrapper');
-    if(!wrapper) return;
-    var path = bresenhamLine(start.row, start.col, current.row, current.col);
-    path.forEach(function(rc){
-      var cellEl = wrapper.querySelector('.cell[data-row="'+rc[0]+'"][data-col="'+rc[1]+'"]');
-      if(cellEl) cellEl.classList.add('cell-line-preview');
-    });
+    markShapePreview(bresenhamLine(start.row, start.col, current.row, current.col));
+  }
+  function updateCirclePreview(pattern, center, current){
+    markShapePreview(circleCells(pattern, center.row, center.col, current.row, current.col));
   }
   function commitLine(){
     if(!state.lineStart) return;
@@ -2309,9 +2360,22 @@
       var path = bresenhamLine(state.lineStart.row, state.lineStart.col, end.row, end.col);
       path.forEach(function(rc){ pattern.cells[rc[0]][rc[1]] = state.activeColor; });
     }
-    clearLinePreview();
+    clearShapePreview();
     state.lineStart = null;
     state.lineCurrent = null;
+  }
+  function commitCircle(){
+    if(!state.circleCenter) return;
+    var project = getProject(state.projectId);
+    var pattern = getPattern(project, state.patternId);
+    var end = state.circleCurrent || state.circleCenter;
+    if(pattern){
+      var cells = circleCells(pattern, state.circleCenter.row, state.circleCenter.col, end.row, end.col);
+      cells.forEach(function(rc){ pattern.cells[rc[0]][rc[1]] = state.activeColor; });
+    }
+    clearShapePreview();
+    state.circleCenter = null;
+    state.circleCurrent = null;
   }
   function endPaint(){
     if(state.isPainting){
@@ -2327,9 +2391,9 @@
       if(project){ touch(project); persist(project, pattern); render(); }
     }
   }
-  document.addEventListener('pointerup', function(e){ endTouchTracking(e); commitLine(); endPaint(); });
-  document.addEventListener('pointercancel', function(e){ endTouchTracking(e); commitLine(); endPaint(); });
-  document.addEventListener('pointerleave', function(e){ if(e.target===document.documentElement){ commitLine(); endPaint(); } });
+  document.addEventListener('pointerup', function(e){ endTouchTracking(e); commitLine(); commitCircle(); endPaint(); });
+  document.addEventListener('pointercancel', function(e){ endTouchTracking(e); commitLine(); commitCircle(); endPaint(); });
+  document.addEventListener('pointerleave', function(e){ if(e.target===document.documentElement){ commitLine(); commitCircle(); endPaint(); } });
 
   /* desktop: wheel-over-grid zooms instead of scrolling */
   document.addEventListener('wheel', function(e){

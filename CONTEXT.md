@@ -256,14 +256,20 @@ picker/organization layer, not a grid-data change.
   to fit in one row on desktop; it still wraps to two on a narrow phone
   via the existing flex-wrap, just with more room before that happens
   than the old two-row layout had.
-- Tools: Paint, Bucket (flood fill), **Line**, Erase — icon-only buttons.
-  Line: press a start cell, drag, release on an end cell, and every cell
-  along a straight line between them gets painted — including true
-  diagonals, via Bresenham's line algorithm (`bresenhamLine()`), not just
-  same-row/same-column. Shows a live outline preview while dragging
-  (`updateLinePreview()`) without touching `pattern.cells` until release,
-  the same "compute now, commit/persist at pointerup" pattern Bucket
-  follows. Needs a yarn selected, same as Paint/Bucket. **Pan** is a
+- Tools: Paint, Bucket (flood fill), **Line**, **Circle**, Erase —
+  icon-only buttons. Line: press a start cell, drag, release on an end
+  cell, and every cell along a straight line between them gets painted —
+  including true diagonals, via Bresenham's line algorithm
+  (`bresenhamLine()`), not just same-row/same-column. Circle: press to set
+  the center, drag out to set the radius, release to fill — radius is
+  measured in on-screen pixels (`circleCells()`, using the pattern's own
+  `cellSize`/`aspect`) so it renders as a true circle even on non-square
+  cells, not an ellipse warped by the stitch aspect ratio. Both share a
+  live outline preview while dragging (`markShapePreview()`/
+  `clearShapePreview()`) without touching `pattern.cells` until release,
+  the same "compute now,
+  commit/persist at pointerup" pattern Bucket follows, and both need a
+  yarn selected, same as Paint/Bucket. **Pan** is a
   separate hand-icon toggle next to the zoom buttons rather than grouped
   with the paint tools, since it plays a different role (viewport, not
   drawing) — click it to scroll a grid wider/taller than the viewport,
@@ -525,9 +531,18 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
       the Yarn Stash screen: chip-based, multiple categories/values at
       once, strict AND, with a chip greyed out the moment turning it on
       would leave zero yarn matching (`yarnStashFilterWouldMatch()`).
-- [ ] **Circle drawing tool**: press to set the center, drag out to set the
+- [x] **Circle drawing tool**: press to set the center, drag out to set the
       radius, live preview of the cells that would get painted, release to
-      commit — alongside Paint/Bucket/Line/Erase. Not yet built.
+      commit (`circleCells()`, `updateCirclePreview()`, `commitCircle()`) —
+      alongside Paint/Bucket/Line/Erase. Radius is measured in on-screen
+      pixels using the pattern's own `cellSize`/`aspect` (not raw row/col
+      distance), so it renders as a true circle even when cells aren't
+      square — verified in an isolated Node simulation (a 3-column drag on
+      2:1-aspect cells produced a ±6-row/±3-col bounding box, i.e. equal
+      120px diameters on both axes). Shares its live-preview mechanism and
+      "compute now, commit at pointerup" shape with the Line tool
+      (generalized `clearShapePreview()`/`markShapePreview()`, was
+      Line-specific `clearLinePreview()`).
 - [ ] **Replace pattern tabs with pattern cards + a dedicated per-pattern
       page**: opening a project currently shows tabs (today's active tab
       is genuinely hard to see until you interact with something — no
@@ -609,6 +624,32 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
 - [ ] Commit with a clear message.
 
 ## Changelog
+
+### 2026-09-13 (Pass 7b: Circle tool)
+- **New Circle tool**, alongside Paint/Bucket/Line/Erase: press to set the
+  center, drag to set the radius, release to commit. `circleCells()`
+  computes the fill using on-screen pixel distance (via the pattern's own
+  `cellSize * aspect` for width, `cellSize` for height) rather than raw
+  row/column distance, so the result reads as an actual circle even when
+  cells aren't square — a naive row/col-distance circle would render as an
+  ellipse on any pattern with a non-1:1 Cell Height:Width Ratio. Verified
+  the pixel math in an isolated Node simulation (dragging 3 columns on
+  2:1-aspect cells produced a ±6-row/±3-col bounding box — both axes work
+  out to the same 120px diameter).
+- **Generalized the Line tool's preview mechanism** for reuse: renamed
+  `clearLinePreview()`/the inline pointermove marking to
+  `clearShapePreview()`/`markShapePreview(cellsList)` and the CSS class
+  from `.cell-line-preview` to `.cell-shape-preview`, so Circle could
+  reuse the exact same "outline the cells that would be painted" behavior
+  instead of duplicating it. Caught and fixed one leftover reference to
+  the old `clearLinePreview()` name (in the pinch-interrupts-a-drag
+  handling) that the rename would otherwise have silently broken.
+- `TOOLS_NEEDING_COLOR`/`toolNeedsColor()` replaces three separate
+  `tool==='paint' || tool==='bucket' || tool==='line'`-style checks that
+  were already drifting apart — one now needs updating per new tool
+  instead of three.
+- Not verified live in a browser this session — the geometry was checked
+  in isolation, not the actual drag gesture or preview rendering.
 
 ### 2026-09-13 (Pass 7a: header row fix, yarn filtering, Pattern Settings → modal, one-row toolbar)
 - **Header fits one row on mobile**: shortened "Yarn Stash" to "Stash" on
