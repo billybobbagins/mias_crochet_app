@@ -140,14 +140,29 @@ picker/organization layer, not a grid-data change.
   the project is created (alongside its name) and manageable afterward via
   a "🧶 Project Yarn" button in the project header. Unchecking a yarn there
   also removes it from any of that project's patterns that had it selected.
-- **Pattern Yarn**: a per-pattern *selection* from the Stash — picked when
-  the pattern is created (alongside rows/cols, defaulting to the project's
-  full yarn list) and manageable afterward via "Manage Pattern Yarn" in the
-  toolbar's active-yarn dropdown (which only lists the pattern's current
-  yarn, not the whole Stash). Checking a Stash yarn that isn't yet part of
-  the project auto-adds it to Project Yarn too — a deliberate simplification
-  of "pick from Project Yarn / pull from Stash / add brand-new" into one
-  list with an auto-expand side effect.
+- **Pattern Yarn**: a per-pattern *selection from that project's Project
+  Yarn* (not the whole Stash) — picked when the pattern is created
+  (alongside rows/cols, defaulting to the project's full yarn list) and
+  manageable afterward via "Manage Pattern Yarn" in the toolbar's
+  active-yarn dropdown. That checklist's pool is always Project Yarn, so a
+  yarn has to be part of the project before it can be part of a pattern.
+  To bring in something new, a **"+ Add Project Yarn"** button opens a
+  second checklist of Stash yarn *not yet* in the project — pick one or
+  more, or use its own "+ Add New Yarn" for a brand-new one (opens the
+  same full Add Yarn form) — and "Add Selected" adds them to Project Yarn
+  immediately, then returns to Manage Pattern Yarn with them checked
+  (merged with whatever was already checked there) so a final Save on
+  that dialog puts them in Pattern Yarn too. This replaced an earlier
+  "one combined list, auto-expand" simplification of the same idea (a
+  single full-Stash checklist where checking a non-project yarn silently
+  expanded Project Yarn) — that shortcut turned out to obscure the
+  project/pattern distinction, so it's back to the more explicit two-step
+  flow originally described. (`state.addProjectYarnReturn` holds Manage
+  Pattern Yarn's checked state while the nested picker is open, the same
+  way `state.yarnAddReturn` holds it for the Add Yarn form — a second,
+  parallel single-level "modal return," since the app can nest at most
+  three yarn-related modals deep: Manage Pattern Yarn → Add Project Yarn →
+  Add New Yarn.)
 - **Adding a new yarn from inside a picker**: every yarn checklist (Project
   Yarn, Pattern Yarn, and both the New Project/New Pattern creation modals)
   has a "+ Add New Yarn" button at the bottom instead of an inline
@@ -354,14 +369,14 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
 
 ### Planned — refinements to existing features
 
-- [ ] **Manage Pattern Yarn redesign**: should default to showing just the
-      current Project Yarn as the pick list (not the whole Stash like now).
-      Add a "+ Add Project Yarn" button that opens a picker of Stash yarn
-      not yet in the project, itself with a "+ Add Yarn" at the bottom
-      opening the same full form the Yarn Stash screen uses. A yarn added
-      this way goes into both Project Yarn and Pattern Yarn. This walks
-      back the "one combined list, auto-expand" simplification approved
-      earlier in favor of the more granular flow originally described.
+- [x] **Manage Pattern Yarn redesign**: now shows just the current Project
+      Yarn as the pick list (not the whole Stash), with a "+ Add Project
+      Yarn" button opening a picker of Stash yarn not yet in the project
+      (itself with its own "+ Add New Yarn" for a brand-new one) — picking
+      or creating one there adds it to Project Yarn immediately and
+      returns it checked in Pattern Yarn. Walks back the "one combined
+      list, auto-expand" simplification in favor of this more granular
+      flow.
 - [x] **Default active yarn**: opening/editing a pattern now sets the
       active yarn to whichever is first in that pattern's Pattern Yarn,
       not the app's accent color. No Pattern Yarn selected → Paint/Bucket
@@ -500,6 +515,28 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
 - [ ] Commit with a clear message.
 
 ## Changelog
+
+### 2026-09-13 (Pass 3: Manage Pattern Yarn redesign)
+- **Manage Pattern Yarn's checklist is now Project-Yarn-scoped**:
+  `openPatternYarnModal()`'s pool changed from every Stash yarn to
+  `db.yarnStash` filtered by `project.yarnIds` — a yarn now has to be in
+  the project before it can be in a pattern, closing the gap the earlier
+  "auto-expand" shortcut had opened.
+- **New "+ Add Project Yarn" nested picker**: `openAddProjectYarnModal()`
+  shows Stash yarn *not yet* in the project as checkboxes, plus its own
+  "+ Add New Yarn" (via the existing `addYarnButtonHtml`/
+  `state.yarnAddReturn` machinery, now handling a third `kind`:
+  `'add-project-yarn'`) for a brand-new one. "Add Selected" adds whatever's
+  checked to `project.yarnIds` immediately, then reopens Manage Pattern
+  Yarn with those ids merged into whatever was already checked there
+  (captured beforehand in the new `state.addProjectYarnReturn`) — so a
+  final Save on the outer dialog puts them in Pattern Yarn too, matching
+  "added to both Project Yarn and Pattern Yarn."
+- Since Pattern Yarn's pool is now always a strict subset of Project Yarn,
+  removed the `save-pattern-yarn` cascade that used to auto-expand
+  `project.yarnIds` for a checked-but-not-in-project yarn — no longer
+  reachable, since nothing outside the pool can get checked.
+- Not verified live in a browser this session.
 
 ### 2026-09-13 (Pass 2: default active yarn + toast, header icons, dev-only Danger Zone, wording, card cleanup)
 - **Default active yarn**: added `syncActiveColorToPattern()`, called

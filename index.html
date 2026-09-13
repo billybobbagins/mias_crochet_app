@@ -687,6 +687,7 @@
     touchPoints:{},         // pointerId -> {x,y}, tracks active touches for pinch-zoom
     pinch:null,             // {startDist, startCellSize} while a 2-finger pinch is in progress
     yarnAddReturn:null,     // {kind, checkedIds, name, rows, cols} — where to return after adding a yarn from inside a picker
+    addProjectYarnReturn:null, // {patternCheckedIds} — Pattern Yarn's checked state, captured before opening "+ Add Project Yarn"
     settingsTab:'general'   // 'general' | 'yarnPresets'
   };
 
@@ -1017,6 +1018,8 @@
       openProjectYarnModal(ids);
     } else if(ret.kind==='pattern-yarn'){
       openPatternYarnModal(ids);
+    } else if(ret.kind==='add-project-yarn'){
+      openAddProjectYarnModal(ids);
     } else if(ret.kind==='new-project'){
       openNewProjectModal(ids, ret.name);
     } else if(ret.kind==='new-pattern'){
@@ -1052,13 +1055,29 @@
     var project = getProject(state.projectId);
     var pattern = getPattern(project, state.patternId);
     if(!pattern) return;
+    var pool = db.yarnStash.filter(function(y){ return (project.yarnIds||[]).indexOf(y.id)!==-1; });
     var checked = presetIds || pattern.yarnIds || [];
     var html = '<div class="modal">';
     html += '<h3>Pattern Yarn</h3>';
-    html += '<div class="hint" style="margin-bottom:10px;">Choose which yarn this pattern uses. Checking one not yet in this project\'s yarn also adds it there.</div>';
-    html += '<div id="pattern-yarn-checklist">'+yarnChecklistHtml(checked)+'</div>';
-    html += addYarnButtonHtml('pattern-yarn','pattern-yarn-checklist');
+    html += '<div class="hint" style="margin-bottom:10px;">Choose which of this project\'s yarn this pattern uses.</div>';
+    html += '<div id="pattern-yarn-checklist">'+yarnChecklistHtml(checked, pool)+'</div>';
+    html += '<button class="btn btn-sm" style="width:100%;margin-top:8px;" data-action="open-add-project-yarn" data-container="pattern-yarn-checklist">+ Add Project Yarn</button>';
     html += '<div class="modal-actions"><button class="btn" data-action="modal-cancel">Cancel</button><button class="btn btn-primary" data-action="save-pattern-yarn">Save</button></div>';
+    html += '</div>';
+    openModal(html);
+  }
+
+  function openAddProjectYarnModal(presetIds){
+    var project = getProject(state.projectId);
+    if(!project) return;
+    var pool = db.yarnStash.filter(function(y){ return (project.yarnIds||[]).indexOf(y.id)===-1; });
+    var checked = presetIds || [];
+    var html = '<div class="modal">';
+    html += '<h3>Add Project Yarn</h3>';
+    html += '<div class="hint" style="margin-bottom:10px;">Pick yarn from your Stash — it\'ll be added to both this project and this pattern.</div>';
+    html += '<div id="add-project-yarn-checklist">'+yarnChecklistHtml(checked, pool)+'</div>';
+    html += addYarnButtonHtml('add-project-yarn','add-project-yarn-checklist');
+    html += '<div class="modal-actions"><button class="btn" data-action="cancel-add-project-yarn">Back</button><button class="btn btn-primary" data-action="save-add-project-yarn">Add Selected</button></div>';
     html += '</div>';
     openModal(html);
   }
@@ -1486,8 +1505,8 @@
 
     switch(action){
       case 'new-project': openNewProjectModal(); break;
-      case 'modal-cancel': state.yarnAddReturn = null; closeModal(); break;
-      case 'modal-backdrop': if(e.target===t){ state.yarnAddReturn = null; closeModal(); } break;
+      case 'modal-cancel': state.yarnAddReturn = null; state.addProjectYarnReturn = null; closeModal(); break;
+      case 'modal-backdrop': if(e.target===t){ state.yarnAddReturn = null; state.addProjectYarnReturn = null; closeModal(); } break;
       case 'modal-create-project': {
         var nameEl = document.getElementById('modal-project-name');
         var name = nameEl ? nameEl.value.trim() : '';
@@ -1820,6 +1839,37 @@
         openPatternYarnModal();
         break;
       }
+      case 'open-add-project-yarn': {
+        var apyContainer = document.getElementById(t.getAttribute('data-container'));
+        var apyChecked = apyContainer ? readCheckedYarnIds(apyContainer) : [];
+        state.addProjectYarnReturn = {patternCheckedIds: apyChecked};
+        openAddProjectYarnModal();
+        break;
+      }
+      case 'cancel-add-project-yarn': {
+        var cancelRet = state.addProjectYarnReturn;
+        state.addProjectYarnReturn = null;
+        openPatternYarnModal(cancelRet ? cancelRet.patternCheckedIds : undefined);
+        break;
+      }
+      case 'save-add-project-yarn': {
+        var sapyProj = getProject(state.projectId);
+        if(!sapyProj) break;
+        var sapyContainer = document.getElementById('add-project-yarn-checklist');
+        var newlyPicked = sapyContainer ? readCheckedYarnIds(sapyContainer) : [];
+        if(newlyPicked.length){
+          var toAdd = newlyPicked.filter(function(id){ return (sapyProj.yarnIds||[]).indexOf(id)===-1; });
+          if(toAdd.length){
+            sapyProj.yarnIds = (sapyProj.yarnIds||[]).concat(toAdd);
+            saveProjectDoc(sapyProj);
+          }
+        }
+        var sapyRet = state.addProjectYarnReturn;
+        state.addProjectYarnReturn = null;
+        var mergedPatternIds = (sapyRet ? sapyRet.patternCheckedIds : []).concat(newlyPicked);
+        openPatternYarnModal(mergedPatternIds);
+        break;
+      }
       case 'save-pattern-yarn': {
         var spyProj = getProject(state.projectId);
         var spyPat = getPattern(spyProj, state.patternId);
@@ -1827,11 +1877,6 @@
         var pyContainer2 = document.getElementById('pattern-yarn-checklist');
         var newPatYarnIds = readCheckedYarnIds(pyContainer2);
         spyPat.yarnIds = newPatYarnIds;
-        var newlyInProject = newPatYarnIds.filter(function(id){ return (spyProj.yarnIds||[]).indexOf(id)===-1; });
-        if(newlyInProject.length){
-          spyProj.yarnIds = (spyProj.yarnIds||[]).concat(newlyInProject);
-          saveProjectDoc(spyProj);
-        }
         touch(spyProj); persist(spyProj, spyPat);
         var stillHasActive = !!state.activeColor && db.yarnStash.some(function(y){ return newPatYarnIds.indexOf(y.id)!==-1 && y.hex.toLowerCase()===state.activeColor.toLowerCase(); });
         if(!newPatYarnIds.length){
