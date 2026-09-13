@@ -893,13 +893,35 @@
   function excelArgbFromHex(hex){
     return 'FF' + hex.replace('#','').toUpperCase();
   }
+  var EXCEL_LABEL_BG = 'FFF0F0F0';       // matches --grid-label-bg (light theme)
+  var EXCEL_LABEL_HI_BG = 'FFDCDCDC';    // matches --grid-label-hi-bg
+  var EXCEL_LABEL_HI_FONT = 'FF3D2F28';  // matches --grid-label-hi-ink
   function exportPatternToExcel(project, pattern){
     showToast('Preparing Excel file…');
     loadExcelJS(function(){
       var yarns = (pattern.yarnIds||[]).map(getYarn).filter(Boolean);
-      var legendCols = 2; // swatch column, name column
-      var gutterCols = 1;
-      var gridStartCol = legendCols + gutterCols + 1; // 1-indexed; grid sits to the right of the legend
+      var thinGrey = {style:'thin', color:{argb:'FFCCCCCC'}};
+      function labelCell(r, c, value, highlighted){
+        var cell = sheet.getCell(r, c);
+        cell.value = value;
+        cell.alignment = {horizontal:'center', vertical:'middle'};
+        cell.font = {bold:true, size:8, color:{argb: highlighted ? EXCEL_LABEL_HI_FONT : 'FF666666'}};
+        cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb: highlighted ? EXCEL_LABEL_HI_BG : EXCEL_LABEL_BG}};
+        cell.border = {top:thinGrey,left:thinGrey,right:thinGrey,bottom:thinGrey};
+      }
+
+      // Layout: legend (A/B) — gutter (C) — left row numbers (D) — grid (E…) — right row numbers.
+      // Top row holds column numbers; a matching row below the grid repeats them on the bottom,
+      // mirroring the app's own 4-sided numbering (see renderGrid()) and respecting this pattern's
+      // configured direction/highlight settings (numbering.flipV/flipH/oddV/oddH) exactly as set.
+      var legendCols = 2, gutterCols = 1;
+      var leftNumCol = legendCols + gutterCols + 1;      // D
+      var gridStartCol = leftNumCol + 1;                 // E
+      var rightNumCol = gridStartCol + pattern.cols;
+      var topNumRow = 1;
+      var gridStartRow = topNumRow + 1;
+      var bottomNumRow = gridStartRow + pattern.rows;
+
       var wb = new ExcelJS.Workbook();
       var sheetName = (pattern.name || 'Pattern').replace(/[\\\/\?\*\[\]:]/g, ' ').substring(0,31) || 'Pattern';
       var sheet = wb.addWorksheet(sheetName);
@@ -916,22 +938,37 @@
       sheet.getColumn(1).width = 4;
       sheet.getColumn(2).width = 22;
 
-      var thinGrey = {style:'thin', color:{argb:'FFCCCCCC'}};
+      // column numbers, top + bottom
+      for(var c=0;c<pattern.cols;c++){
+        var cd = colDisplay(pattern,c);
+        labelCell(topNumRow, gridStartCol+c, cd, isHighlighted(cd,'top',pattern.numbering.oddH));
+        labelCell(bottomNumRow, gridStartCol+c, cd, isHighlighted(cd,'bottom',pattern.numbering.oddH));
+      }
+      // row numbers, left + right, and the grid cells themselves
       for(var r=0;r<pattern.rows;r++){
-        for(var c=0;c<pattern.cols;c++){
-          var hex = pattern.cells[r][c];
-          var cell = sheet.getCell(r+1, gridStartCol+c);
+        var rd = rowDisplay(pattern,r);
+        var excelRow = gridStartRow+r;
+        labelCell(excelRow, leftNumCol, rd, isHighlighted(rd,'left',pattern.numbering.oddV));
+        labelCell(excelRow, rightNumCol, rd, isHighlighted(rd,'right',pattern.numbering.oddV));
+        for(var c2=0;c2<pattern.cols;c2++){
+          var hex = pattern.cells[r][c2];
+          var cell = sheet.getCell(excelRow, gridStartCol+c2);
           cell.border = {top:thinGrey,left:thinGrey,right:thinGrey,bottom:thinGrey};
           if(hex){
             cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb: excelArgbFromHex(hex)}};
           }
         }
       }
+
+      sheet.getColumn(leftNumCol).width = 4;
+      sheet.getColumn(rightNumCol).width = 4;
       for(var gc=0; gc<pattern.cols; gc++){
         sheet.getColumn(gridStartCol+gc).width = 2.6;
       }
+      sheet.getRow(topNumRow).height = 14;
+      sheet.getRow(bottomNumRow).height = 14;
       for(var gr=0; gr<pattern.rows; gr++){
-        sheet.getRow(gr+1).height = 14;
+        sheet.getRow(gridStartRow+gr).height = 14;
       }
 
       wb.xlsx.writeBuffer().then(function(buffer){

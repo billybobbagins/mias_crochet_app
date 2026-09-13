@@ -271,9 +271,23 @@ picker/organization layer, not a grid-data change.
   Every grid cell gets a light grey border (so the shape reads even where
   blank) and filled cells get a solid Excel cell fill matching their yarn's
   hex exactly (`excelArgbFromHex()` — Excel fills use ARGB, so it's the hex
-  with an opaque `FF` alpha prefix). Verified end-to-end with the real
+  with an opaque `FF` alpha prefix). **Row/column numbering** is included on
+  all 4 sides of the grid (left/right row numbers, top/bottom column
+  numbers), mirroring the app's own on-screen `renderGrid()` exactly — same
+  `rowDisplay()`/`colDisplay()`/`isHighlighted()` functions the live grid
+  uses, so direction (flipV/flipH) and which side highlights odd numbers
+  (oddV/oddH) match whatever that specific pattern has configured in
+  Pattern Settings. Highlighted numbers get a distinct fill/font color
+  (`EXCEL_LABEL_HI_BG`/`EXCEL_LABEL_HI_FONT`) matching the app's `.lbl-hi`
+  colors. Unlike the live grid, every number is shown — the on-screen
+  label-thinning for very zoomed-out patterns (`labelStepForSize()`) is a
+  screen-space concession, not a configured setting, so it wasn't
+  replicated here; a very wide/tall pattern will just have narrow numbered
+  columns/rows in Excel, same as it would in any dense numbered chart.
+  Verified end-to-end with the real
   `exceljs` npm package in Node (build a workbook, write it, read it back,
-  confirm fills/legend/grid position match) since this environment can't
+  confirm fills/legend/grid/numbering position and direction-flipping all
+  match) since this environment can't
   open the file in an actual browser or Excel.
 - Cell zoom (toolbar +/− buttons, pinch-to-zoom on touch, mouse-wheel/
   trackpad over the grid on desktop, 4–44px) and a Cell Height:Width Ratio
@@ -579,10 +593,11 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
       net regardless of the cap.
 - [x] **Export to Excel** — a new download-icon button in the pattern
       header exports the current pattern as a real `.xlsx` file (colored
-      cell fills matching yarn hex, plus a yarn-name legend) using ExcelJS,
-      loaded on demand from a CDN. See Patterns above for the full shape
-      and layout, and the user's explicit sign-off on the legend-left/
-      grid-top-right layout.
+      cell fills matching yarn hex, plus a yarn-name legend, plus row/
+      column numbering on all 4 sides matching that pattern's configured
+      direction/highlight settings) using ExcelJS, loaded on demand from a
+      CDN. See Patterns above for the full shape and layout, and the
+      user's explicit sign-off on the legend-left/grid-top-right layout.
 - [x] **Home header genuinely one row on mobile** — shortening "Yarn
       Stash" to "Stash" alone wasn't enough; added a `.header-actions` flex
       wrapper (title left-justified, buttons right-justified, one row) plus
@@ -754,6 +769,29 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
 - [ ] Commit with a clear message.
 
 ## Changelog
+
+### 2026-09-13 (Pass 10: Excel export gains row/column numbering)
+- **Excel export now includes row/column numbering**, matching whatever
+  that pattern has configured in Pattern Settings — not a fixed default.
+  Added number cells on all 4 sides of the grid (left/right for rows, top/
+  bottom for columns), reusing the exact same `rowDisplay()`/
+  `colDisplay()`/`isHighlighted()` functions the live on-screen grid uses,
+  so a flipped direction (`numbering.flipV`/`flipH`) or a non-default odd-
+  highlight side (`numbering.oddV`/`oddH`) comes through in the exported
+  file exactly as it looks in the app. Highlighted numbers get a distinct
+  fill/font color matching the app's `.lbl-hi` styling
+  (`EXCEL_LABEL_BG`/`EXCEL_LABEL_HI_BG`/`EXCEL_LABEL_HI_FONT`).
+  Reworked the sheet layout to make room: legend (A/B) — gutter (C) — left
+  row-number column (D) — grid (E onward) — right row-number column, with
+  a column-number row above and below the grid instead of the grid
+  starting flush at row 1. Deliberately did *not* replicate the live
+  grid's label-thinning for very zoomed-out patterns
+  (`labelStepForSize()`) — that's a screen-space rendering concession tied
+  to on-screen `cellSize`, not a stored setting, so every number is always
+  shown in the export regardless of pattern size. Verified the direction-
+  flipping logic in an isolated Node check (a pattern with `flipV:true`
+  correctly produced descending row numbers on both sides) before wiring
+  it into the real export function.
 
 ### 2026-09-13 (Pass 9: grid size cap raised to 300, save-failure toast, Excel export)
 - **Grid size cap**: user asked to raise the max from 100 to 1000. Before
