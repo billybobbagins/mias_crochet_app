@@ -242,11 +242,20 @@
   .preset-chip{display:inline-flex;align-items:center;gap:6px;background:var(--bg-alt);border-radius:999px;padding:6px 8px 6px 14px;font-size:13px;font-weight:600;}
   .preset-chip .rm2{cursor:pointer;color:var(--ink-soft);width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:13px;line-height:1;}
   .preset-chip .rm2:hover{background:var(--danger);color:#fff;}
-  .yarn-checklist{display:flex;flex-direction:column;gap:8px;max-height:280px;overflow:auto;margin-bottom:12px;padding-right:4px;}
-  .yarn-check-row{display:flex;align-items:center;gap:10px;font-size:13.5px;}
-  .yarn-check-row .swatch{display:inline-block;width:20px;height:20px;min-width:20px;min-height:20px;border-radius:6px;border:1px solid var(--border);flex-shrink:0;}
-  .yarn-check-row .name{flex:1;}
-  .yarn-check-row .meta{color:var(--ink-soft);font-size:12px;}
+  .yarn-pill-picker{display:flex;flex-direction:column;gap:14px;margin-bottom:12px;}
+  .yarn-pill-label{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);font-weight:700;margin-bottom:6px;}
+  .yarn-pill-row{
+    display:flex;flex-wrap:wrap;align-content:flex-start;gap:8px;min-height:38px;max-height:160px;
+    overflow:auto;padding:8px;border:1px dashed var(--border);border-radius:10px;
+  }
+  .yarn-pill{
+    display:inline-flex;align-items:center;gap:6px;padding:5px 10px 5px 6px;border-radius:999px;
+    border:1px solid var(--border);background:var(--bg-alt);cursor:pointer;font-size:12.5px;
+    font-weight:600;color:var(--ink);font-family:inherit;
+  }
+  .yarn-pill .swatch{display:inline-block;width:16px;height:16px;min-width:16px;min-height:16px;border-radius:5px;border:1px solid var(--border);flex-shrink:0;}
+  .yarn-pill.selected{background:var(--accent);color:var(--accent-ink);border-color:transparent;}
+  .yarn-pill.selected .swatch{border-color:rgba(255,255,255,.5);}
 
   .hint{color:var(--ink-soft);font-size:12.5px;line-height:1.5;}
 
@@ -981,28 +990,43 @@
     setTimeout(function(){ var el=document.getElementById('yarn-name'); if(el) el.focus(); },0);
   }
 
+  function yarnPillHtml(y, isSelected){
+    var meta = yarnMetaLine(y);
+    return '<button type="button" class="yarn-pill'+(isSelected?' selected':'')+'" data-action="toggle-yarn-pill" data-yarn-id="'+y.id+'"'+(meta?' title="'+escapeHtml(meta)+'"':'')+'>'+
+      '<span class="swatch" style="background:'+y.hex+';"></span>'+
+      '<span class="name">'+escapeHtml(y.name)+'</span>'+
+      '</button>';
+  }
+  // Renders two pill pools — "Selected" and "Available" — instead of a
+  // checkbox list: clicking a pill moves it between them (toggle-yarn-pill
+  // action, pure DOM manipulation, no re-render) so what's chosen is
+  // always visually separated from what isn't. readCheckedYarnIds() below
+  // is the single place that later reads back which pills ended up
+  // selected, so every save/add handler that calls it needed no changes.
   function yarnChecklistHtml(checkedIds, pool){
     pool = pool || db.yarnStash;
     if(!pool.length){
       return '<div class="hint" style="margin-bottom:10px;">No yarn available yet — add one below.</div>';
     }
-    var html = '<div class="yarn-checklist">';
-    pool.slice().sort(function(a,b){ return a.name.localeCompare(b.name); }).forEach(function(y){
-      var checked = checkedIds.indexOf(y.id)!==-1;
-      var meta = yarnMetaLine(y);
-      html += '<label class="yarn-check-row"><input type="checkbox" data-yarn-check="'+y.id+'"'+(checked?' checked':'')+'>';
-      html += '<span class="swatch" style="background:'+y.hex+';"></span>';
-      html += '<span class="name">'+escapeHtml(y.name)+'</span>';
-      if(meta) html += '<span class="meta">'+escapeHtml(meta)+'</span>';
-      html += '</label>';
-    });
+    var sorted = pool.slice().sort(function(a,b){ return a.name.localeCompare(b.name); });
+    var selected = sorted.filter(function(y){ return checkedIds.indexOf(y.id)!==-1; });
+    var available = sorted.filter(function(y){ return checkedIds.indexOf(y.id)===-1; });
+    var html = '<div class="yarn-pill-picker">';
+    html += '<div class="yarn-pill-section"><div class="yarn-pill-label">Selected</div>';
+    html += '<div class="yarn-pill-row yarn-pill-selected">';
+    html += selected.length ? selected.map(function(y){ return yarnPillHtml(y,true); }).join('') : '<span class="hint">None yet</span>';
+    html += '</div></div>';
+    html += '<div class="yarn-pill-section"><div class="yarn-pill-label">Available</div>';
+    html += '<div class="yarn-pill-row yarn-pill-available">';
+    html += available.length ? available.map(function(y){ return yarnPillHtml(y,false); }).join('') : '<span class="hint">None</span>';
+    html += '</div></div>';
     html += '</div>';
     return html;
   }
   function readCheckedYarnIds(root){
-    var boxes = root.querySelectorAll('[data-yarn-check]');
+    var pills = root.querySelectorAll('.yarn-pill.selected[data-yarn-id]');
     var ids = [];
-    for(var i=0;i<boxes.length;i++){ if(boxes[i].checked) ids.push(boxes[i].getAttribute('data-yarn-check')); }
+    for(var i=0;i<pills.length;i++){ ids.push(pills[i].getAttribute('data-yarn-id')); }
     return ids;
   }
   function addYarnButtonHtml(kind, containerId){
@@ -1643,6 +1667,23 @@
           db.yarnPresets = defaultYarnPresets();
           savePresetsDoc(db.yarnPresets);
           render();
+        }
+        break;
+      }
+      case 'toggle-yarn-pill': {
+        var picker = t.closest('.yarn-pill-picker');
+        if(!picker) break;
+        var wasSelected = t.classList.contains('selected');
+        t.classList.toggle('selected');
+        var targetRow = picker.querySelector(wasSelected ? '.yarn-pill-available' : '.yarn-pill-selected');
+        var fromRow = t.parentNode;
+        if(targetRow){
+          var hint = targetRow.querySelector('.hint');
+          if(hint) hint.remove();
+          targetRow.appendChild(t);
+        }
+        if(fromRow && !fromRow.querySelector('.yarn-pill')){
+          fromRow.innerHTML = '<span class="hint">'+(fromRow.classList.contains('yarn-pill-selected')?'None yet':'None')+'</span>';
         }
         break;
       }

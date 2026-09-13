@@ -171,6 +171,14 @@ picker/organization layer, not a grid-data change.
   the checklist you came from with the new yarn checked and everything
   else you'd already filled in or checked still intact
   (`state.yarnAddReturn`, `reopenYarnReturnModal()`).
+- **Picker UI**: every one of these "checklists" is visually a pair of
+  pill pools — "Selected" and "Available" — not checkboxes. Clicking a
+  pill moves it between the two pools (`toggle-yarn-pill` action, plain
+  DOM manipulation with no re-render). `readCheckedYarnIds(root)` is still
+  the one function every save/add handler calls to read back what ended
+  up in "Selected" (now scanning for `.yarn-pill.selected` instead of
+  checked `<input>`s), so none of those call sites needed to change when
+  this moved from checkboxes to pills.
 - **Migration**: projects/patterns created before this system (which had a
   flat `project.palette` instead) are upgraded automatically the first time
   they're loaded — each old palette entry becomes its own new Stash entry,
@@ -322,16 +330,16 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
 - [ ] **Yarn checklist color swatches not showing** — confirmed reproducing
       after a full data wipe (so not stale cached data), shows as a thin
       horizontal line where the color square should be. Two static-code
-      read-throughs found nothing wrong (`.yarn-check-row .swatch` styling
-      looks correct: 20×20px, `flex-shrink:0`, inside a `display:flex`
-      label). Applied a defensive hardening (`display:inline-block` +
-      `min-width`/`min-height` added alongside the existing `width`/
-      `height`, in case some browser context wasn't sizing it as a flex
-      item for an unclear reason) but this is a guess, not a confirmed
-      fix — if it still reproduces, the next step is inspecting the actual
-      element in browser devtools (right-click the swatch → Inspect →
-      check the Computed tab for its real width/height/background) since
-      static reading has hit its limit twice now.
+      read-throughs of the old checkbox-based markup (`<label
+      class="yarn-check-row">`) found nothing wrong, and a defensive CSS
+      hardening didn't confirm-fix it either. The Pass 4 pill rework
+      (below) replaced that markup entirely (`<button class="yarn-pill">`,
+      a different element and flex context) — please retest against the
+      new pill picker specifically, since the bug may or may not still
+      reproduce against genuinely different markup. If it does, the next
+      step is inspecting the actual `.yarn-pill .swatch` element in
+      browser devtools (right-click → Inspect → Computed tab) since static
+      code reading has hit its limit here.
 - [x] **Bucket fill undo failing intermittently** — root cause found:
       bucket fill responded to `pointermove`, not just `pointerdown`, so
       any drag/tremor during a "tap" (very common on touchscreens) fired
@@ -424,13 +432,11 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
 
 ### Planned — new features
 
-- [ ] **Pill-based yarn selection UI**, replacing the checkbox list used by
-      every yarn picker (Project Yarn, Pattern Yarn, New Project, New
-      Pattern, and the redesigned Manage Pattern Yarn above): an
-      "available" pool of pills and a "selected" pool: clicking a pill
-      moves it from available → selected (and back), so what's chosen is
-      always visibly separated from what isn't, rather than scanning a
-      long checklist for checked boxes.
+- [x] **Pill-based yarn selection UI**, replacing the checkbox list used by
+      every yarn picker (Project Yarn, Pattern Yarn, Add Project Yarn, New
+      Project, New Pattern): an "Available" pool of pills and a "Selected"
+      pool — clicking a pill moves it between them, so what's chosen is
+      always visibly separated from what isn't.
 - [ ] **Filter/group the yarn list** by category (brand, size, etc.) in the
       pickers, with the user able to choose how the list is organized/
       displayed. Not yet scoped — depends somewhat on the pill UI above.
@@ -515,6 +521,24 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
 - [ ] Commit with a clear message.
 
 ## Changelog
+
+### 2026-09-13 (Pass 4: pill-based yarn picker)
+- **Replaced the checkbox list with pills** in `yarnChecklistHtml()`:
+  renders two labeled pill pools, "Selected" and "Available," instead of
+  one scrollable list of `<label><input type=checkbox>...</label>` rows.
+  Clicking a pill (`toggle-yarn-pill` action) moves it between the two
+  pools directly in the DOM (no re-render) — toggles its `.selected`
+  class, relocates the element, and swaps in/out each pool's "None"/"None
+  yet" placeholder as it empties/fills.
+- **`readCheckedYarnIds(root)` kept its exact signature and contract**
+  (container element in, array of selected yarn ids out) — only its
+  internals changed, from querying checked `<input>`s to querying
+  `.yarn-pill.selected[data-yarn-id]`. Every save/add handler that calls
+  it (Project Yarn, Pattern Yarn, Add Project Yarn, New Project, New
+  Pattern) needed zero changes as a result.
+- Removed the now-dead `.yarn-checklist`/`.yarn-check-row` CSS; added
+  `.yarn-pill-picker`/`.yarn-pill-row`/`.yarn-pill` in its place.
+- Not verified live in a browser this session.
 
 ### 2026-09-13 (Pass 3: Manage Pattern Yarn redesign)
 - **Manage Pattern Yarn's checklist is now Project-Yarn-scoped**:
