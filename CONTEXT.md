@@ -267,6 +267,140 @@ picker/organization layer, not a grid-data change.
 
 Populated collaboratively as we go — check items off as they ship, add new
 ones as they come up. Nothing here is committed to until we discuss it.
+Reorganized 2026-09-13 (was one long chronological list) into open work up
+top, grouped by kind, and a **Shipped** log at the bottom for history.
+
+### Known bugs
+
+- [ ] **Yarn checklist color swatches not showing** — confirmed still
+      reproducing after a full data wipe (so not stale cached data), shows
+      as a thin horizontal line where the color square should be instead
+      of a filled swatch. All checklists go through the same
+      `yarnChecklistHtml()`, so needs a proper look at the actual rendered
+      DOM/CSS (e.g. via browser devtools) rather than static code reading —
+      Claude's two prior static-code passes found nothing wrong. Likely
+      candidate to check first: whether `.yarn-check-row .swatch` is
+      actually collapsing to near-zero height in some browsers/contexts
+      despite `display:flex` on the row.
+- [ ] **Bucket fill undo still occasionally fails** — the pointerup-deferred
+      fix from the second UX pass didn't fully resolve it; user has seen it
+      recur since. Needs a full audit of every code path that touches
+      `state.undoStack`/`pushUndoSnapshot`/bucket fill (including
+      interaction with the pinch-zoom pointer-tracking added later — a
+      2-finger touch landing while a bucket fill's pointerdown is
+      in-flight is untested), not just re-confirming the original fix.
+      High cost of failure (could silently wreck a near-finished pattern),
+      so treat as high priority.
+
+### Needs live verification (not yet confirmed working on a real device)
+
+- [ ] Zoom +/− and Pan on a phone with a wide pattern; toolbar as two clean
+      rows on a phone in landscape; Pattern Settings Save/Cancel/discard
+      prompt and its undo/redo; pattern rename undo; Refresh pulling fresh
+      data; each login account seeing separate projects.
+- [ ] Pinch-to-zoom on an actual phone (does a 2-finger touch ever still
+      trigger an accidental paint stroke on the first finger before the
+      second lands?); wheel-zoom over the grid on desktop (does it still
+      let you scroll the page normally everywhere else?); stitch-guide
+      auto-centering and resume-position across a logout/reopen; the
+      vertical stitch direction's column highlighting.
+- [ ] Full Yarn Stash end-to-end flow: a pre-existing project opening
+      correctly with its old colors now showing as Project Yarn; the full
+      create-project → pick/add yarn → create-pattern → pick/add yarn →
+      paint flow; unchecking a yarn from Project Yarn correctly clearing it
+      from any pattern that had it; a Preset Options add/remove surviving a
+      refresh.
+
+### Planned — refinements to existing features
+
+- [ ] **Manage Pattern Yarn redesign**: should default to showing just the
+      current Project Yarn as the pick list (not the whole Stash like now).
+      Add a "+ Add Project Yarn" button that opens a picker of Stash yarn
+      not yet in the project, itself with a "+ Add Yarn" at the bottom
+      opening the same full form the Yarn Stash screen uses. A yarn added
+      this way goes into both Project Yarn and Pattern Yarn. This walks
+      back the "one combined list, auto-expand" simplification approved
+      earlier in favor of the more granular flow originally described.
+- [ ] **Default active yarn** when opening/editing a pattern should be
+      whichever yarn is first in that pattern's Pattern Yarn, not the app's
+      accent color. If a pattern has no Pattern Yarn selected yet: disable
+      Paint (and Bucket, since both need a color — Erase stays enabled),
+      show the tool icon greyed out, and if the user tries to paint anyway,
+      show a **toast notification** ("select a yarn first") — this needs a
+      new toast/transient-notification UI component, since today the app
+      only has blocking `alert()`/`confirm()`.
+- [ ] **iPhone header overflow**: the Yarn Stash/Settings/Refresh/Log out
+      button row pushes past the screen edge. Convert Settings, Refresh,
+      and Log out to icon-only square buttons (simple single-color SVG
+      gear/refresh/logout icons, matching the existing toolbar icon style —
+      not emoji). Keep Yarn Stash as its current text+emoji button.
+- [ ] **Danger Zone should only show for the Developer account**, not
+      Mia's — compare `auth.currentUser.email` against the "dev" entry in
+      `LOGIN_ACCOUNTS` before rendering that section.
+- [ ] **Grid viewport/zoom rearchitecture**: right now the grid's rendered
+      size just grows with zoom and the browser scrolls it — width caps at
+      the screen but height keeps growing unbounded. Wanted instead: the
+      grid defaults to fitting the screen's width (full pattern width
+      visible, no horizontal scroll needed at 100%), with height following
+      from that width and the locked cell aspect ratio. The *viewing area*
+      (viewport) should then stay a fixed on-screen size, with zoom/pan
+      moving and scaling the grid *within* that fixed viewport (like a
+      map), rather than the viewport itself growing — and zooming out
+      should be able to shrink the grid smaller than the screen width too.
+      Also: when zoomed out far enough that row/column numbers would be
+      unreadably small, thin them out adaptively (every 5th number, then
+      every 10th, etc.) the way axis ticks scale on a graph. This is a
+      genuine rendering-architecture change (fixed-size viewport with
+      content that scales/pans inside it, vs. today's "container grows to
+      fit content, browser scrollbars appear as needed"), not a small
+      tweak — needs real design thought before touching.
+- [ ] **"Start Stitch" → "Resume Stitch"**: the button in the pattern
+      header should read "Resume Stitch" instead of "Start Stitch" once a
+      saved position exists for that pattern (i.e. `pattern.guidePos > 0`,
+      the same condition that currently drives `state.guideResumed`).
+      Keep the existing "Revert to beginning" button, but reword the guide
+      bar's "Resuming where you left off" note to **"Continuing from last
+      session."**
+- [ ] **Yarn Stash card delete** moves from the card itself into the
+      Edit Yarn modal (a Delete button between Cancel and Save), with a
+      confirmation warning before deleting — same pattern as project/
+      pattern delete elsewhere.
+- [ ] **Home screen project cards**: remove the hover-reveal delete icon
+      from the card (rely on the Delete button already inside the project
+      page instead — one way to delete a project, not two). Also slim the
+      card height down — it still reserves vertical space as if for the
+      old color-swatch row that was removed a few passes ago.
+- [ ] Yarn Stash reorder option (today it's always alphabetical by name) —
+      raised earlier, still not scoped.
+- [ ] Broader "discard unsaved changes?" sweep beyond Pattern Settings —
+      raised earlier, still not scoped.
+
+### Planned — new features
+
+- [ ] **Pill-based yarn selection UI**, replacing the checkbox list used by
+      every yarn picker (Project Yarn, Pattern Yarn, New Project, New
+      Pattern, and the redesigned Manage Pattern Yarn above): an
+      "available" pool of pills and a "selected" pool: clicking a pill
+      moves it from available → selected (and back), so what's chosen is
+      always visibly separated from what isn't, rather than scanning a
+      long checklist for checked boxes.
+- [ ] **Filter/group the yarn list** by category (brand, size, etc.) in the
+      pickers, with the user able to choose how the list is organized/
+      displayed. Not yet scoped — depends somewhat on the pill UI above.
+- [ ] **Straight-line drawing tool**: click two points on the grid and fill
+      every cell between them, alongside Paint/Bucket/Erase. Should ideally
+      handle diagonals (not just same-row/same-column lines) — likely a
+      Bresenham-line-style algorithm to pick which cells a diagonal line
+      "passes through." Not yet scoped.
+- [ ] **Image upload** — user asked whether Firebase supports this: yes,
+      via **Firebase Storage** (a separate product from Firestore, same
+      Firebase project, would need its own SDK include and its own
+      security rules file). Not wired into the app at all yet and no
+      concrete use case defined (e.g. a reference photo attached to a
+      project or pattern) — needs scoping before building, not committed
+      to yet.
+
+### Shipped
 
 - [x] Decide on and implement a proper storage strategy — done via Firebase
       (Firestore + Auth), see Data & Storage above.
@@ -286,14 +420,6 @@ ones as they come up. Nothing here is committed to until we discuss it.
       two isolated login accounts (Mia / Developer).
 - [x] Create the "mia" Firebase Auth account — done, using Mia's real email
       (`miajade.kha@gmail.com`).
-- [ ] Real end-to-end test of this second UX pass on desktop and an actual
-      phone (Claude couldn't browser-test the live login flow — no access to
-      either account's real passcode). Please verify: zoom +/− and Pan on a
-      phone with a wide pattern (no more jump-to-top-left switching tools),
-      bucket-fill undo/redo, toolbar as two clean rows on a phone in
-      landscape, Pattern Settings Save/Cancel/discard-prompt and its
-      undo/redo, pattern rename undo, Refresh pulling fresh data, and each
-      login account seeing separate projects.
 - [x] Third UX pass: stitch direction setting (horizontal/vertical) driving
       the stitch guide's step axis, auto-centering the highlighted
       row/column in the viewport while guiding, per-pattern saved guide
@@ -303,13 +429,6 @@ ones as they come up. Nothing here is committed to until we discuss it.
       moved into the pattern header actions and re-iconed, header simplified
       to "Crochet Projects" with no logo, footer disclaimer removed,
       project/pattern rename moved to a pencil icon next to each heading.
-- [ ] Real end-to-end test of the third UX pass, especially the parts Claude
-      could not verify live: pinch-to-zoom on an actual phone (does a
-      2-finger touch ever still trigger an accidental paint stroke on the
-      first finger before the second lands?), wheel-zoom over the grid on
-      desktop (does it still let you scroll the page normally everywhere
-      else?), stitch-guide auto-centering and resume-position across a
-      logout/reopen, and the vertical stitch direction's column highlighting.
 - [x] Small polish pass: icon-only Delete Project (matching pattern
       delete), replaced the odd hand pan icon with a simple 4-way
       move/cross-arrow, added a "Resuming where you left off" indicator +
@@ -323,12 +442,6 @@ ones as they come up. Nothing here is committed to until we discuss it.
       pattern creation and manageable from the toolbar), all with inline
       "add a new yarn" and automatic upgrade of old projects' flat
       palettes. See the dedicated section above for the full shape.
-- [ ] Real end-to-end test of the Yarn Stash system, which Claude could not
-      exercise live: a pre-existing project opening correctly with its old
-      colors now showing as Project Yarn; the full create-project → pick or
-      add yarn → create-pattern → pick or add yarn → paint flow; unchecking
-      a yarn from Project Yarn correctly clearing it from any pattern that
-      had it; a Preset Options "add"/"remove" surviving a refresh.
 - [x] Yarn Stash follow-up pass: smaller click-to-edit cards (no separate
       Edit button), dropped the "No extra details yet" placeholder,
       illustrative details on the migrated seed-palette examples, "+ Add
@@ -337,19 +450,11 @@ ones as they come up. Nothing here is committed to until we discuss it.
       picker + Yarn Presets management moved there from the Stash screen),
       zoom now anchors to cursor/pinch-point/viewport-center instead of the
       grid's top-left, "Your Projects" heading removed.
-- [ ] Investigate: user reported the New Project/New Pattern creation
-      modals' yarn checklist not showing color swatches, while the Project
-      Yarn/Pattern Yarn management modals' checklists do — both render
-      through the exact same `yarnChecklistHtml()` function, so Claude
-      could not find a code-level difference (similar to the earlier
-      "Clear Grid" wording false-alarm, which turned out to be a stale
-      cached copy of the site). Please recheck after a hard refresh; if it
-      still reproduces, note exactly which modal and what you see.
-- [ ] Yarn Stash currently always sorts alphabetically by name — a manual
-      reorder option was requested for later, not yet scoped.
-- [ ] Broader "discard unsaved changes?" sweep beyond Pattern Settings
-      (raised alongside the original Yarn Stash notes — not yet scoped).
-- [ ] (add more here as we plan upcoming work)
+- [x] Default preset cleanup (emptied speculative Brand list, deduped
+      Material, fixed a Hook Size gap, added a "Reset to defaults" button).
+- [x] Self-service "Wipe all my data" Danger Zone in Settings, scoped to
+      whichever account is signed in — added since Claude has no direct
+      Firestore access to clear test data itself.
 
 ## Update checklist (run through this on every change we ship)
 
