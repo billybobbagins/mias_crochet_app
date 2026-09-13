@@ -455,6 +455,7 @@
     circle: '<svg '+ICON_SVG_ATTRS+'><circle cx="12" cy="12" r="8"/></svg>',
     rectangle: '<svg '+ICON_SVG_ATTRS+'><rect x="4" y="6" width="16" height="12" rx="1"/></svg>',
     filter: '<svg '+ICON_SVG_ATTRS+'><path d="M4 4h16l-6 8v6l-4 2v-8z"/></svg>',
+    download: '<svg '+ICON_SVG_ATTRS+'><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg>',
     yarnGlyph: '<svg '+ICON_SVG_ATTRS+' style="width:60%;height:60%;"><path d="M12 2C7 2 4 5 4 9c0 3 2 4 2 6 0 2-2 3-2 5" fill="none"/><path d="M12 2c5 0 8 3 8 7 0 3-2 4-2 6 0 2 2 3 2 5" fill="none"/><path d="M7 6c1.5 1.5 1.5 3.5 0 5M17 6c-1.5 1.5-1.5 3.5 0 5M8 15c1.2 1 1.2 2.5 0 3.5M16 15c-1.2 1-1.2 2.5 0 3.5" fill="none"/></svg>'
   };
 
@@ -551,11 +552,13 @@
   function saveProjectDoc(project){
     userProjectsRef().doc(project.id).set(serializeProject(project)).catch(function(e){
       console.error('Failed to save project', e);
+      showToast('Save failed — changes may not be backed up');
     });
   }
   function savePatternDoc(project, pattern){
     userProjectsRef().doc(project.id).collection('patterns').doc(pattern.id).set(serializePattern(pattern)).catch(function(e){
       console.error('Failed to save pattern', e);
+      showToast('Save failed — changes may not be backed up');
     });
   }
   function persist(project, pattern){
@@ -866,6 +869,88 @@
   }
 
   function touch(project){ project.updatedAt = new Date().toISOString(); }
+
+  /* ---------- Excel export (ExcelJS, loaded on demand from CDN) ---------- */
+  var EXCELJS_CDN_URL = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+  var excelJsLoadCallbacks = null;
+  function loadExcelJS(cb){
+    if(window.ExcelJS){ cb(); return; }
+    if(excelJsLoadCallbacks){ excelJsLoadCallbacks.push(cb); return; }
+    excelJsLoadCallbacks = [cb];
+    var script = document.createElement('script');
+    script.src = EXCELJS_CDN_URL;
+    script.onload = function(){
+      var cbs = excelJsLoadCallbacks || [];
+      excelJsLoadCallbacks = null;
+      cbs.forEach(function(fn){ fn(); });
+    };
+    script.onerror = function(){
+      excelJsLoadCallbacks = null;
+      showToast('Could not load the Excel export library — check your connection');
+    };
+    document.head.appendChild(script);
+  }
+  function excelArgbFromHex(hex){
+    return 'FF' + hex.replace('#','').toUpperCase();
+  }
+  function exportPatternToExcel(project, pattern){
+    showToast('Preparing Excel file…');
+    loadExcelJS(function(){
+      var yarns = (pattern.yarnIds||[]).map(getYarn).filter(Boolean);
+      var legendCols = 2; // swatch column, name column
+      var gutterCols = 1;
+      var gridStartCol = legendCols + gutterCols + 1; // 1-indexed; grid sits to the right of the legend
+      var wb = new ExcelJS.Workbook();
+      var sheetName = (pattern.name || 'Pattern').replace(/[\\\/\?\*\[\]:]/g, ' ').substring(0,31) || 'Pattern';
+      var sheet = wb.addWorksheet(sheetName);
+
+      sheet.getCell(1,1).value = 'Yarn';
+      sheet.getCell(1,1).font = {bold:true};
+      yarns.forEach(function(y, i){
+        var r = i+2;
+        var swatchCell = sheet.getCell(r,1);
+        swatchCell.fill = {type:'pattern', pattern:'solid', fgColor:{argb: excelArgbFromHex(y.hex)}};
+        swatchCell.border = {top:{style:'thin'},left:{style:'thin'},right:{style:'thin'},bottom:{style:'thin'}};
+        sheet.getCell(r,2).value = y.name;
+      });
+      sheet.getColumn(1).width = 4;
+      sheet.getColumn(2).width = 22;
+
+      var thinGrey = {style:'thin', color:{argb:'FFCCCCCC'}};
+      for(var r=0;r<pattern.rows;r++){
+        for(var c=0;c<pattern.cols;c++){
+          var hex = pattern.cells[r][c];
+          var cell = sheet.getCell(r+1, gridStartCol+c);
+          cell.border = {top:thinGrey,left:thinGrey,right:thinGrey,bottom:thinGrey};
+          if(hex){
+            cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb: excelArgbFromHex(hex)}};
+          }
+        }
+      }
+      for(var gc=0; gc<pattern.cols; gc++){
+        sheet.getColumn(gridStartCol+gc).width = 2.6;
+      }
+      for(var gr=0; gr<pattern.rows; gr++){
+        sheet.getRow(gr+1).height = 14;
+      }
+
+      wb.xlsx.writeBuffer().then(function(buffer){
+        var blob = new Blob([buffer], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = (project.name+'-'+pattern.name).replace(/[^a-z0-9\-_ ]/gi,'_') + '.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+        showToast('Excel file downloaded');
+      }).catch(function(e){
+        console.error('Excel export failed', e);
+        showToast('Excel export failed');
+      });
+    });
+  }
 
   /* ---------- flood fill ---------- */
   function bucketFill(pattern, startRow, startCol, color){
@@ -1396,6 +1481,7 @@
       html += '<button class="btn btn-sm btn-sage" data-action="guide-toggle" title="'+stitchLabel+' Guide">'+ICONS.arrowRight+' '+stitchLabel+'</button>';
     }
     html += '<button class="icon-btn" data-action="open-pattern-settings" title="Pattern Settings">'+ICONS.gear+'</button>';
+    html += '<button class="icon-btn" data-action="export-excel" data-id="'+pattern.id+'" title="Export to Excel">'+ICONS.download+'</button>';
     html += '<button class="icon-btn" data-action="duplicate-pattern" data-id="'+pattern.id+'" title="Duplicate">'+ICONS.copy+'</button>';
     html += '<button class="icon-btn icon-btn-danger" data-action="delete-pattern" data-id="'+pattern.id+'" title="Delete">'+ICONS.trash+'</button>';
     if(editing){
@@ -1465,8 +1551,8 @@
   function patternSettingsFieldsHtml(draft){
     var html = '';
     html += '<h3>Pattern Settings</h3>';
-    html += '<div class="field-row"><div class="field"><label>Rows</label><input type="number" id="draft-rows" min="1" max="100" value="'+draft.rows+'"></div>';
-    html += '<div class="field"><label>Columns</label><input type="number" id="draft-cols" min="1" max="100" value="'+draft.cols+'"></div></div>';
+    html += '<div class="field-row"><div class="field"><label>Rows</label><input type="number" id="draft-rows" min="1" max="300" value="'+draft.rows+'"></div>';
+    html += '<div class="field"><label>Columns</label><input type="number" id="draft-cols" min="1" max="300" value="'+draft.cols+'"></div></div>';
 
     html += '<div class="field"><label>Row numbers</label><select data-action="set-draft-numbering" data-field="flipV">';
     html += '<option value="false"'+(!draft.numbering.flipV?' selected':'')+'>Top → Bottom (1…N)</option>';
@@ -1651,8 +1737,8 @@
     var html = '<div class="modal">';
     html += '<h3>New Pattern</h3>';
     html += '<div class="field"><label>Pattern name</label><input type="text" id="modal-pattern-name" value="'+(presetFields.name?escapeHtml(presetFields.name):'')+'" placeholder="e.g. Front Panel" autofocus></div>';
-    html += '<div class="field-row"><div class="field"><label>Rows</label><input type="number" id="modal-pattern-rows" min="1" max="100" value="'+(presetFields.rows||20)+'"></div>';
-    html += '<div class="field"><label>Columns</label><input type="number" id="modal-pattern-cols" min="1" max="100" value="'+(presetFields.cols||20)+'"></div></div>';
+    html += '<div class="field-row"><div class="field"><label>Rows</label><input type="number" id="modal-pattern-rows" min="1" max="300" value="'+(presetFields.rows||20)+'"></div>';
+    html += '<div class="field"><label>Columns</label><input type="number" id="modal-pattern-cols" min="1" max="300" value="'+(presetFields.cols||20)+'"></div></div>';
     html += '<div class="field"><label>Yarn for this pattern</label>';
     html += '<div id="new-pattern-yarn-checklist">'+yarnChecklistHtml(checked, projectYarn)+'</div>';
     html += addYarnButtonHtml('new-pattern','new-pattern-yarn-checklist');
@@ -1680,8 +1766,8 @@
   }
 
   function newPattern(project, name, rows, cols, yarnIds){
-    rows = clamp(parseInt(rows,10)||20,1,100);
-    cols = clamp(parseInt(cols,10)||20,1,100);
+    rows = clamp(parseInt(rows,10)||20,1,300);
+    cols = clamp(parseInt(cols,10)||20,1,300);
     var pt = {
       id: uid(),
       name: name || 'Untitled Pattern',
@@ -1997,6 +2083,13 @@
         if(pn && pn.trim()){ pushUndoSnapshot(pt2); pt2.name = pn.trim(); touch(pr); persist(pr, pt2); render(); }
         break;
       }
+      case 'export-excel': {
+        var prX = getProject(state.projectId);
+        var ptX = getPattern(prX, t.getAttribute('data-id'));
+        if(!prX || !ptX) break;
+        exportPatternToExcel(prX, ptX);
+        break;
+      }
       case 'duplicate-pattern': {
         var pr2 = getProject(state.projectId);
         var pt3 = getPattern(pr2, t.getAttribute('data-id'));
@@ -2164,8 +2257,8 @@
         var prj4 = getProject(state.projectId);
         var pat2 = getPattern(prj4, state.patternId);
         if(!pat2 || !state.patternSettingsDraft) break;
-        var nr = clamp(parseInt(document.getElementById('draft-rows').value,10)||pat2.rows,1,100);
-        var nc = clamp(parseInt(document.getElementById('draft-cols').value,10)||pat2.cols,1,100);
+        var nr = clamp(parseInt(document.getElementById('draft-rows').value,10)||pat2.rows,1,300);
+        var nc = clamp(parseInt(document.getElementById('draft-cols').value,10)||pat2.cols,1,300);
         var sizeChanged = (nr!==pat2.rows || nc!==pat2.cols);
         if(sizeChanged){
           if(nr<pat2.rows || nc<pat2.cols){

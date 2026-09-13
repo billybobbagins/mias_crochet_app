@@ -75,6 +75,19 @@ single-`localStorage`-blob approach:
     two people," not a real multi-user auth system — don't scale this
     pattern up (e.g. self-serve signup) without redesigning auth if more
     users are ever added.
+  - **Firestore's 1MB-per-document hard limit caps grid size.** A pattern's
+    entire `cells` grid is serialized into one `cellsJson` string field on
+    one document — there's no chunking. Measured actual sizes: a 300×300
+    grid is ~0.43MB empty / ~0.86MB fully filled (safely under the limit);
+    a 500×500 grid is already ~1.19MB *empty*, over the limit. This is why
+    the grid size cap is 300, not higher — going bigger would need
+    splitting a pattern's cells across multiple sub-documents (chunked
+    storage) rather than just raising a number. A failed save currently
+    only logs to the console and shows a generic "Save failed" toast — it
+    doesn't specifically detect "this pattern is too big," so a
+    theoretical future bug that let rows/cols exceed 300 (e.g. a bypassed
+    client-side clamp) would fail silently-ish rather than with a clear
+    error, worth keeping in mind if this area changes again.
 
 ## Current functionality
 
@@ -243,9 +256,25 @@ picker/organization layer, not a grid-data change.
   project names, next to the project heading); Duplicate/Delete are icon
   buttons in the header actions row; Edit/Done Editing are the two text
   buttons there.
-- Configurable grid size (1–100 rows × 1–100 cols), resizable via Pattern
+- Configurable grid size (1–300 rows × 1–300 cols), resizable via Pattern
   Settings (shrinking prompts a confirmation since it discards out-of-bounds
-  cells).
+  cells). Capped at 300, not higher, because of how patterns are stored —
+  see Data & storage above.
+- **Export to Excel** — a download-icon button in the pattern header
+  (`exportPatternToExcel()`) builds a real `.xlsx` workbook client-side via
+  **ExcelJS** (loaded from a CDN on first use, not bundled up front, so
+  patterns that never export it never pay the ~950KB download) and
+  triggers a browser download. Layout: a yarn legend (colored swatch +
+  name, one row per Pattern Yarn entry) in the leftmost two columns, then
+  the actual grid starting a few columns further right at row 1 — so it
+  reads as sitting in the top-right of the used area, next to the legend.
+  Every grid cell gets a light grey border (so the shape reads even where
+  blank) and filled cells get a solid Excel cell fill matching their yarn's
+  hex exactly (`excelArgbFromHex()` — Excel fills use ARGB, so it's the hex
+  with an opaque `FF` alpha prefix). Verified end-to-end with the real
+  `exceljs` npm package in Node (build a workbook, write it, read it back,
+  confirm fills/legend/grid position match) since this environment can't
+  open the file in an actual browser or Excel.
 - Cell zoom (toolbar +/− buttons, pinch-to-zoom on touch, mouse-wheel/
   trackpad over the grid on desktop, 4–44px) and a Cell Height:Width Ratio
   preset dropdown (Taller/Tall/Square/Wide/Wider) to approximate real stitch
@@ -541,6 +570,19 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
       as-is for now (working well enough), logged here rather than guessed
       at again blind — needs the user's specifics on what looks off before
       touching it further.
+- [x] **Max grid size raised from 100 to 300** (rows and cols) — capped at
+      300 rather than the originally-requested 1000 because of Firestore's
+      1MB-per-document limit; see Data & storage above for the actual
+      measured numbers and the user's explicit choice of this tradeoff over
+      a bigger storage-architecture rework. Added a save-failure toast
+      alongside this (previously silent, console-only) as a cheap safety
+      net regardless of the cap.
+- [x] **Export to Excel** — a new download-icon button in the pattern
+      header exports the current pattern as a real `.xlsx` file (colored
+      cell fills matching yarn hex, plus a yarn-name legend) using ExcelJS,
+      loaded on demand from a CDN. See Patterns above for the full shape
+      and layout, and the user's explicit sign-off on the legend-left/
+      grid-top-right layout.
 - [x] **Home header genuinely one row on mobile** — shortening "Yarn
       Stash" to "Stash" alone wasn't enough; added a `.header-actions` flex
       wrapper (title left-justified, buttons right-justified, one row) plus
@@ -712,6 +754,49 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
 - [ ] Commit with a clear message.
 
 ## Changelog
+
+### 2026-09-13 (Pass 9: grid size cap raised to 300, save-failure toast, Excel export)
+- **Grid size cap**: user asked to raise the max from 100 to 1000. Before
+  implementing, measured the actual serialized size of `cellsJson` at
+  various sizes (see the Bash-computed table in this pass's conversation):
+  a 300×300 grid stays safely under Firestore's 1MB-per-document limit even
+  fully filled (~0.86MB), while a 500×500 grid is already over the limit
+  *empty* (~1.19MB), and 1000×1000 would be 5-10MB — 5-10x over the limit,
+  which would make saves fail (currently silently, console-only). Flagged
+  this to the user with options (cap at 300, cap at 200, restructure
+  storage to chunk cells across multiple documents, or cap at 300 + add a
+  save-failure toast) rather than shipping something that would look like
+  it worked but silently lose data on real, large patterns. User picked
+  "cap at 300 + add a save-failure toast." Implemented: raised all six
+  rows/cols `max`/`clamp` call sites from 100 to 300, and added a
+  `showToast('Save failed — changes may not be backed up')` call to both
+  `saveProjectDoc()`'s and `savePatternDoc()`'s existing `.catch()`
+  handlers (previously `console.error` only, no user-facing signal at
+  all).
+- **Excel export**: new `exportPatternToExcel()`, wired to a download-icon
+  button in the pattern header. Loads **ExcelJS** from a CDN on first use
+  (`loadExcelJS()`, a plain dynamic `<script>` injection with a callback
+  queue for concurrent calls — not bundled up front, so the ~950KB library
+  is never fetched unless someone actually exports). Builds a workbook with
+  a yarn-name legend (colored swatch cell + name) in columns A-B and the
+  grid itself starting a few columns to the right at row 1, so it visually
+  reads as being in the top-right of the used area next to the legend —
+  matching what the user asked for and confirmed. Every grid cell gets a
+  light grey border regardless of fill (so blank areas still read as part
+  of the grid); filled cells get a solid Excel fill in the exact yarn hex
+  (Excel fills are ARGB, so `excelArgbFromHex()` just prepends an opaque
+  `FF`). Downloads via a Blob + temporary `<a download>` + object URL,
+  standard browser download — not sandboxed the way an Artifact preview
+  would be, so this works normally on the live site. Verified the whole
+  pipeline (legend placement, grid offset, fill colors, blank-cell
+  no-fill) end-to-end using the real `exceljs` npm package in Node — built
+  a workbook, wrote it, read it back, and confirmed cell-by-cell — since
+  this environment has no way to open the resulting file in an actual
+  browser or Excel.
+- Not verified live: the actual download/open-in-Excel experience on a
+  real device, and the exported grid's readability/proportions when
+  opened (column width `2.6` and row height `14` were chosen to look
+  roughly square in Excel's default view but weren't visually confirmed).
 
 ### 2026-09-13 (Pass 8: header/thumbnail polish, Group/Filter dropdown, yarn glyph, two-finger pan, Rectangle tool)
 - **Home header, genuinely one row**: shortening "Yarn Stash" to "Stash"
