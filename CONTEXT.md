@@ -88,11 +88,16 @@ single-`localStorage`-blob approach:
   slimmer now (no more `min-height` left over from the removed
   color-swatch row).
 - Create / delete projects. Delete requires confirmation.
-- Header buttons: 🧶 Stash (text+emoji, shortened from "Yarn Stash" so the
-  whole row fits on one line on a phone same as desktop), then three
-  icon-only square buttons — ⚙ gear (Settings), a refresh-arrows icon
-  (re-pulls the latest data from Firestore), and a door-arrow icon (Log
-  out).
+- Header buttons: 🧶 Stash (text+emoji), then three icon-only square
+  buttons — ⚙ gear (Settings), a refresh-arrows icon (re-pulls the latest
+  data from Firestore), and a door-arrow icon (Log out) — grouped in a
+  `.header-actions` flex container so they stay right-justified against
+  the left-justified "Crochet Projects" title in one row, matching the
+  in-pattern header's layout. Shortening "Yarn Stash" to "Stash" alone
+  wasn't enough to keep the row from wrapping on narrow phones, so a
+  `@media (max-width:420px)` rule also tightens the header's
+  padding/gaps and hides the Stash button's text label (leaving just the
+  🧶 emoji) below that width.
 - In-app header just says "Crochet Projects" (no logo icon) so it and the
   "← All Projects" back button fit on one line on a phone. No footer
   disclaimer text anymore (removed — was leftover copy from the
@@ -129,15 +134,19 @@ picker/organization layer, not a grid-data change.
   size are optional. Managed from its own screen (🧶 **Stash** button on
   the home header): a compact card grid (swatch, name, details if any —
   the details line is omitted entirely rather than showing a placeholder
-  when a yarn has none set) sorted alphabetically by name, with a
-  **"Group by"** dropdown (None/Brand/Material/Size/Hook Size) that splits
-  the grid into sub-headed groups by that field (a yarn missing it groups
-  under "Unset," sorted last) — `state.yarnStashGroupBy`. A separate
-  **"Filter by"** section shows every preset option as a clickable chip
-  per category; a yarn must match *every* chip you've turned on
-  (`state.yarnStashFilters`, strict AND — this also naturally stops you
-  picking two values from the same category, since a yarn only has one
-  Material etc., so the second one would always yield zero matches).
+  when a yarn has none set) sorted alphabetically by name, with a single
+  **"Group / Filter"** collapsible dropdown (`renderYarnGroupFilterDropdown()`,
+  `state.yarnGroupFilterOpen`, closes on an outside click the same way the
+  active-yarn dropdown does) holding both controls — a **"Group by"**
+  `<select>` (None/Brand/Material/Size/Hook Size) that splits the grid into
+  sub-headed groups by that field (a yarn missing it groups under "Unset,"
+  sorted last), and a **"Filter by"** chip section below it, one clickable
+  chip per preset option; a yarn must match *every* chip you've turned on
+  (`state.yarnStashFilters`, strict AND). The two are mutually exclusive —
+  picking a Group by clears any active filters, and turning on a filter
+  chip resets Group by to None — since running both at once wasn't needed
+  and this was explicitly the simpler option. The dropdown's button label
+  summarizes whichever is active ("Grouped by Material" / "2 filters").
   Whenever turning on one more chip would leave zero yarn matching, that
   chip is greyed out and inert (`yarnStashFilterWouldMatch()`) rather than
   letting you reach a dead-end "no results" state through the filters
@@ -209,12 +218,14 @@ picker/organization layer, not a grid-data change.
   the Project Yarn button — see Yarn Stash / Project Yarn / Pattern Yarn
   above).
 - A project holds one or more patterns, shown as a **card grid** (was
-  tabs) — each card shows the pattern's name, grid size, small dots for
-  its Pattern Yarn colors, and a scaled-down thumbnail render of the
-  actual grid (`patternThumbnailSvg()`, capped at 24×24 sampled cells
-  regardless of the pattern's real size, so a huge pattern's thumbnail
-  stays cheap to render). A dashed "+ New Pattern" tile sits alongside the
-  cards, matching the Home screen's "+ New Project" tile. Switched away
+  tabs) — each card is a row with the name/grid-size/Pattern-Yarn-color-dots
+  on the left and a small (44×44px) thumbnail render of the actual grid on
+  the right (`patternThumbnailSvg()`). The thumbnail renders every cell at
+  full fidelity (no downsampling — it's a lossless vector SVG scaled down
+  by the browser) with `shape-rendering="crispEdges"` so adjacent same-size
+  rects don't show anti-aliasing seams between them, and draws only the
+  filled cells' colors — no grid lines. A dashed "+ New Pattern" tile sits
+  alongside the cards, matching the Home screen's "+ New Project" tile. Switched away
   from tabs because the active tab gave no visible "you are here"
   indication until you interacted with something on the page — a plain
   named tab looks identical whether selected or not until its accent
@@ -274,19 +285,22 @@ picker/organization layer, not a grid-data change.
   to fit in one row on desktop; it still wraps to two on a narrow phone
   via the existing flex-wrap, just with more room before that happens
   than the old two-row layout had.
-- Tools: Paint, Bucket (flood fill), **Line**, **Circle**, Erase —
-  icon-only buttons. Line: press a start cell, drag, release on an end
-  cell, and every cell along a straight line between them gets painted —
+- Tools: Paint, Bucket (flood fill), **Line**, **Circle**, **Rectangle**,
+  Erase — icon-only buttons. Line: press a start cell, drag, release on an
+  end cell, and every cell along a straight line between them gets painted —
   including true diagonals, via Bresenham's line algorithm
   (`bresenhamLine()`), not just same-row/same-column. Circle: press to set
   the center, drag out to set the radius, release to fill — radius is
   measured in on-screen pixels (`circleCells()`, using the pattern's own
   `cellSize`/`aspect`) so it renders as a true circle even on non-square
-  cells, not an ellipse warped by the stitch aspect ratio. Both share a
+  cells, not an ellipse warped by the stitch aspect ratio. Rectangle: press
+  one corner, drag to the opposite corner, release to fill every cell in
+  the bounding box between them (`rectangleCells()`) — deliberately filled,
+  not just an outline, matching Circle's approach. All three share a
   live outline preview while dragging (`markShapePreview()`/
   `clearShapePreview()`) without touching `pattern.cells` until release,
   the same "compute now,
-  commit/persist at pointerup" pattern Bucket follows, and both need a
+  commit/persist at pointerup" pattern Bucket follows, and all need a
   yarn selected, same as Paint/Bucket. **Pan** is a
   separate hand-icon toggle next to the zoom buttons rather than grouped
   with the paint tools, since it plays a different role (viewport, not
@@ -296,11 +310,23 @@ picker/organization layer, not a grid-data change.
   re-render, including switching tools — previously any state change reset
   the grid's scroll to the top-left because the grid DOM was fully replaced
   each time.
-- Active yarn is a single button showing the current color. Clicking it
-  opens a dropdown listing the pattern's yarn ("Pattern Yarn") to pick from,
-  plus a "Manage Pattern Yarn" action — see Yarn Stash / Project Yarn /
-  Pattern Yarn above. The pan icon is a simple 4-way move/cross-arrow, not
-  a hand — the original hand icon read oddly at this size.
+- Active yarn is a single button showing the current color, with a small
+  white yarn/skein icon (drop-shadowed so it stays visible against any
+  background color, including the empty dashed swatch) always overlaid on
+  top so the button reads as "the yarn picker" even before any color is
+  set. Clicking it opens a dropdown listing the pattern's yarn ("Pattern
+  Yarn") to pick from, plus a "Manage Pattern Yarn" action — see Yarn
+  Stash / Project Yarn / Pattern Yarn above. The pan icon is a simple 4-way
+  move/cross-arrow, not a hand — the original hand icon read oddly at this
+  size.
+- **Two-finger pan**: alongside pinch-to-zoom, a two-finger touch drag now
+  also pans the grid — each `pointermove` shifts `.grid-scroll`'s
+  `scrollLeft`/`scrollTop` by however far the two fingers' midpoint moved
+  since the previous move event, before the existing pinch-zoom math (which
+  re-anchors around that same midpoint) runs. The two gestures are additive
+  and independent: panning works whether or not the pinch distance is also
+  changing that frame, and zooming still keeps the same on-screen point
+  fixed under your fingers exactly as before.
 - **Default active yarn**: opening/creating/duplicating a pattern (or
   auto-selecting one when you first land on a project) sets the active
   yarn to whichever yarn is *first* in that pattern's Pattern Yarn
@@ -438,6 +464,15 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
       paint flow; unchecking a yarn from Project Yarn correctly clearing it
       from any pattern that had it; a Preset Options add/remove surviving a
       refresh.
+- [ ] **This pass's changes**, none of which could be exercised in a real
+      browser/touchscreen this session: the home header staying one row
+      down to actual narrow-phone widths; the pattern-card thumbnail
+      rendering crisp (no seams) and legible at 44×44px for a high-res
+      grid; the Group/Filter dropdown opening/closing correctly and
+      actually being mutually exclusive in practice; the active-yarn glyph
+      being legible against light *and* dark yarn colors; two-finger pan
+      working smoothly alongside pinch-zoom (and not fighting it); and the
+      new Rectangle tool's drag/preview/commit feel on both mouse and touch.
 
 ### Planned — refinements to existing features
 
@@ -506,6 +541,23 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
       as-is for now (working well enough), logged here rather than guessed
       at again blind — needs the user's specifics on what looks off before
       touching it further.
+- [x] **Home header genuinely one row on mobile** — shortening "Yarn
+      Stash" to "Stash" alone wasn't enough; added a `.header-actions` flex
+      wrapper (title left-justified, buttons right-justified, one row) plus
+      a `max-width:420px` media query that tightens padding/gaps and hides
+      the Stash button's text label on very narrow phones. See Home screen
+      above.
+- [x] **Pattern card thumbnail redesign** — full-fidelity render (no
+      downsampling), `shape-rendering="crispEdges"` to avoid seams, no grid
+      lines drawn, laid out as a small (44×44px) thumbnail right-justified
+      against the name/grid-size/yarn-dots on the left. See Projects above.
+- [x] **Yarn Stash Group by / Filter by merged into one dropdown**,
+      mutually exclusive (picking one clears the other) per explicit user
+      request that this was fine to simplify. See Yarn Stash section above.
+- [x] **Active-yarn button always shows a yarn/skein glyph** overlaid on
+      the color swatch (white, drop-shadowed for visibility on any
+      background) so it reads as "the yarn picker" even when empty. See
+      Pattern editor above.
 - [x] **Toolbar down to one row + Pattern Settings moved to a modal**:
       Pattern Settings is no longer a toolbar dropdown — it's a gear-icon
       button in the pattern header (next to Duplicate/Delete) that opens a
@@ -545,6 +597,30 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
       concrete use case defined (e.g. a reference photo attached to a
       project or pattern) — needs scoping before building, not committed
       to yet.
+- [ ] **Two-finger pan** alongside pinch-to-zoom — shipped this pass, see
+      Pattern editor above and the changelog entry below. Flagged for live
+      device testing since it can't be exercised in this environment
+      (a real two-finger drag on a touchscreen).
+- [x] **Rectangle drawing tool**: press one corner, drag to the opposite
+      corner, release to fill the bounding box between them — same
+      architecture as Line/Circle (`rectangleCells()`,
+      `updateRectanglePreview()`, `commitRectangle()`). Filled, not just an
+      outline, for consistency with Circle.
+- [ ] **Yarn yardage/length calculator** — user asked how feasible it'd be
+      to estimate how much of each yarn a pattern will use, given the
+      stitch type and "other variables it needs." This is a real,
+      buildable feature (yardage-per-stitch is a known, publishable
+      constant per stitch type + yarn weight — e.g. a single crochet in
+      worsted-weight yarn uses roughly a fixed length per stitch, scaled by
+      hook size/tension), **but it needs real inputs before it can be
+      built**, not a guess: which stitch type(s) to support first, whether
+      tension/gauge should be a user-entered override or a fixed table per
+      stitch+weight, and whether "how much yarn a pattern uses" means per
+      filled cell (assuming one stitch per cell, which matches how this
+      app already models a graphgan) or something more granular. Logged
+      here as a scoped-but-not-started feature rather than attempted blind
+      this pass — worth a short follow-up conversation on the exact
+      stitch-to-yardage assumptions before writing any code.
 - [x] **Filter the yarn list by category** — added alongside Group by on
       the Yarn Stash screen: chip-based, multiple categories/values at
       once, strict AND, with a chip greyed out the moment turning it on
@@ -636,6 +712,74 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
 - [ ] Commit with a clear message.
 
 ## Changelog
+
+### 2026-09-13 (Pass 8: header/thumbnail polish, Group/Filter dropdown, yarn glyph, two-finger pan, Rectangle tool)
+- **Home header, genuinely one row**: shortening "Yarn Stash" to "Stash"
+  in Pass 7a wasn't enough on narrow phones. Wrapped the header's button
+  group in a `.header-actions` flex container (title stays left-justified
+  via `justify-content:space-between` on `.app-header`, buttons stay
+  grouped and right-justified) and added a `@media (max-width:420px)` rule
+  that tightens `.app-header` padding/gaps, shrinks the title, and hides
+  the Stash button's `<span class="btn-label">` text (leaving just 🧶) —
+  the actual fix, not just shorter text.
+- **Pattern card thumbnail redesign**: `patternThumbnailSvg()` no longer
+  downsamples to a capped sample grid — it draws one `<rect>` per actual
+  cell (a lossless vector, scaled down by the browser, so a 100×100
+  pattern costs the same to describe as it always did, just renders
+  smaller) and adds `shape-rendering="crispEdges"` so adjacent same-color
+  rects don't show faint anti-aliased seams between them. Only filled
+  cells get a rect — no grid lines drawn. `renderPatternCard()` restructured
+  from a stacked layout to a row (`.pattern-card-row`): name/grid-size/
+  yarn-dots in `.pattern-card-info` on the left, a small fixed 44×44px
+  `.pattern-card-thumb` on the right (was `width:100%;aspect-ratio:1`).
+- **Yarn Stash Group by / Filter by merged into one dropdown**: replaced
+  the always-visible `<select>` + always-visible filter-chip section with
+  a single collapsible `.dropdown-wrap`/`.dropdown-panel` (reusing the same
+  pattern as the active-yarn dropdown), toggled by
+  `state.yarnGroupFilterOpen` and closed on an outside click via the
+  existing generic outside-click handler (extended to check this flag
+  alongside `state.colorPickerOpen`). Made the two mutually exclusive per
+  explicit user sign-off that this was fine to simplify: picking a non-
+  "None" Group by clears `state.yarnStashFilters`; turning on any filter
+  chip resets `state.yarnStashGroupBy` to `'none'`. `renderYarnFilterSection()`
+  was folded into a new `renderYarnGroupFilterDropdown()` that renders both
+  controls and a one-line summary in the toggle button's label.
+- **Active-yarn glyph**: added `ICONS.yarnGlyph`, a small skein/yarn-ball
+  icon rendered white with a dark `drop-shadow` (via CSS, `.color-btn
+  svg`) so it stays legible over any active color, including the empty
+  dashed swatch — always shown on top of the active-yarn button so its
+  purpose is clear even before any yarn is picked.
+- **Two-finger pan**: the existing pinch-to-zoom pointer tracking
+  (`state.pinch`, `state.touchPoints`) now also records the two-finger
+  midpoint each move (`state.pinch.lastMid`) and shifts `.grid-scroll`'s
+  `scrollLeft`/`scrollTop` by the midpoint's on-screen delta before running
+  the existing zoom-around-anchor math. The two are independent and
+  additive: `zoomPatternAroundPoint()` always re-derives its scroll target
+  fresh from the *current* scroll position and anchor point, so the manual
+  pan adjustment and the zoom's own re-anchoring never fight each other,
+  and panning still works on a move where the pinch distance doesn't
+  change (no zoom that frame) since it's applied unconditionally.
+- **Rectangle tool**: new tool alongside Paint/Bucket/Line/Circle/Erase —
+  press one corner, drag, release on the opposite corner to fill the
+  bounding box between them (`rectangleCells()`, a plain min/max row-col
+  span, verified against both drag directions in an isolated Node check).
+  Filled, not outlined, matching Circle's approach for consistency. Built
+  by mirroring the Line/Circle architecture exactly: `state.rectStart`/
+  `rectCurrent`, `updateRectanglePreview()`/`commitRectangle()` sharing the
+  same `markShapePreview()`/`clearShapePreview()` live-preview mechanism,
+  added to `TOOLS_NEEDING_COLOR` and the toolbar's tools array, and folded
+  into the pinch-interrupts-a-drag abandonment logic (rolls back the
+  pushed undo snapshot and clears `rectStart`/`rectCurrent`, same as
+  Line/Circle) and the `pointerup`/`pointercancel`/`pointerleave` commit
+  chain.
+- **Assessed, not built**: a yarn-yardage/length calculator (estimate how
+  much of each yarn a pattern uses given stitch type). Real and buildable,
+  but needs the user's input on stitch type(s) to support, gauge/tension
+  handling, and what "usage" should be measured against before writing any
+  code — logged as a scoped-but-not-started feature rather than guessed at
+  blind. See "Planned — new features" above.
+- Not verified live in a browser this session — every item above needs a
+  real device/touchscreen pass; see "Needs live verification" above.
 
 ### 2026-09-13 (Pass 7c: pattern cards replace tabs, dedicated pattern page)
 - **New navigation level**: `state.view` gains a `'pattern'` value,
