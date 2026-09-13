@@ -82,10 +82,17 @@ single-`localStorage`-blob approach:
 - Grid of project cards (name, pattern count, last-updated date — no color
   preview, since projects are moving toward a yarn-based model rather than
   flat color swatches). No "Your Projects" heading above the grid anymore —
-  redundant with the page itself.
+  redundant with the page itself. No hover-reveal delete icon on the card
+  either — deleting a project happens from inside it (the Delete button in
+  the project header), one way rather than two; cards themselves are also
+  slimmer now (no more `min-height` left over from the removed
+  color-swatch row).
 - Create / delete projects. Delete requires confirmation.
-- Header buttons: 🧶 Yarn Stash, ⚙ Settings, ⟳ Refresh (re-pulls the latest
-  data from Firestore), ⎋ Log out.
+- Header buttons: 🧶 Yarn Stash (text+emoji), then three icon-only square
+  buttons — ⚙ gear (Settings), a refresh-arrows icon (re-pulls the latest
+  data from Firestore), and a door-arrow icon (Log out). Converted from
+  text+emoji buttons since the row was overflowing the screen edge on a
+  phone; Yarn Stash keeps its label since it's the most-used of the four.
 - In-app header just says "Crochet Projects" (no logo icon) so it and the
   "← All Projects" back button fit on one line on a phone. No footer
   disclaimer text anymore (removed — was leftover copy from the
@@ -102,10 +109,13 @@ tabs (`SETTINGS_TABS`):
 - **Yarn Presets**: the brand/material/size/hook-size dropdown-option
   management, moved here from the Yarn Stash screen (chip list per
   category, add/remove, "Reset to defaults").
-- **General → Danger Zone**: a "Wipe all my data" button that permanently
-  deletes every project/pattern/yarn/preset for *whichever account is
-  currently signed in* (`wipeAllMyData()`, scoped by `auth.currentUser`'s
-  uid the same way every other read/write already is — it can never touch
+- **General → Danger Zone**: only rendered when signed in as the
+  Developer account (`isDevAccount()`, compares `auth.currentUser.email`
+  against the "dev" entry in `LOGIN_ACCOUNTS`) — invisible on Mia's
+  account. A "Wipe all my data" button that permanently deletes every
+  project/pattern/yarn/preset for *whichever account is currently signed
+  in* (`wipeAllMyData()`, scoped by `auth.currentUser`'s uid the same way
+  every other read/write already is — it can never touch
   a different account). Meant for clearing out test data on the Developer
   account; shows the signed-in email right on the button so it's clear
   which account is about to be wiped.
@@ -121,8 +131,11 @@ picker/organization layer, not a grid-data change.
   the details line is omitted entirely rather than showing a placeholder
   when a yarn has none set) sorted alphabetically by name. Click a card
   anywhere to edit it (no separate Edit button — that's the only reason to
-  be on this screen); a small trash icon in the corner deletes it. The
-  dropdown preset-list management moved to Settings → Yarn Presets (below).
+  be on this screen). Delete lives inside the Edit Yarn modal itself (a
+  Delete button between Cancel and Save, with a confirmation warning) —
+  not on the card, so there's one deliberate path to delete rather than a
+  quick hover-icon. The dropdown preset-list management moved to
+  Settings → Yarn Presets (below).
 - **Project Yarn**: a per-project *selection* from the Stash — picked when
   the project is created (alongside its name) and manageable afterward via
   a "🧶 Project Yarn" button in the project header. Unchecking a yarn there
@@ -206,6 +219,22 @@ picker/organization layer, not a grid-data change.
   plus a "Manage Pattern Yarn" action — see Yarn Stash / Project Yarn /
   Pattern Yarn above. The pan icon is a simple 4-way move/cross-arrow, not
   a hand — the original hand icon read oddly at this size.
+- **Default active yarn**: opening/creating/duplicating a pattern (or
+  auto-selecting one when you first land on a project) sets the active
+  yarn to whichever yarn is *first* in that pattern's Pattern Yarn
+  (`syncActiveColorToPattern()`), instead of carrying over whatever was
+  active in a previously-open pattern or falling back to the app's accent
+  color. If a pattern has no Pattern Yarn selected at all, `state.
+  activeColor` is `null` — the color button shows an empty dashed swatch,
+  and Paint/Bucket (not Erase, which needs no color) render greyed out in
+  the toolbar. They're still clickable (not natively `disabled`, so a
+  click can be intercepted rather than silently doing nothing): clicking
+  either one, or trying to paint/fill directly on the grid, shows a
+  **toast** ("Select a yarn first") instead of switching tools or
+  painting. This is the app's first toast/transient-notification UI
+  (`showToast()`, `#toast-root` — a small pill that fades in/out at the
+  bottom of the screen), alongside the existing blocking `alert()`/
+  `confirm()` used elsewhere.
 - **Pattern Settings** (renamed from "Grid Settings") is Save/Cancel-gated:
   opening it drafts the current rows/cols/numbering/ratio; edits only apply
   to the draft. Save commits (running the resize-crop logic if rows/cols
@@ -231,9 +260,12 @@ picker/organization layer, not a grid-data change.
   off (accidental painting from a 2-finger touch, jumpy zoom, etc.).
 
 ### Stitch guide ("View" mode)
-- Entry point moved: a "Start Stitch" button (arrow-right icon) now lives in
-  the pattern header's action row (next to Duplicate/Delete), replacing the
-  old bordered "Start Stitch Guide" box with subtext below the grid. Once
+- Entry point moved: a button (arrow-right icon) lives in the pattern
+  header's action row (next to Duplicate/Delete), replacing the old
+  bordered "Start Stitch Guide" box with subtext below the grid. It reads
+  **"Start Stitch"** the first time, or **"Resume Stitch"** if
+  `pattern.guidePos > 0` (i.e. you've stepped through this pattern
+  before) — same condition that drives `state.guideResumed` below. Once
   the guide is active, the Prev/Next/Stop bar still appears below the grid
   as before.
 - Steps through the pattern one row or column at a time (Prev/Next buttons,
@@ -248,7 +280,7 @@ picker/organization layer, not a grid-data change.
   (`pattern.guidePos` in Firestore) every time you step, so closing the app
   mid-pattern and reopening the guide later picks back up at the same spot.
   Position resets to the start if you change the Stitch direction setting.
-  When resuming from a non-zero position, a "Resuming where you left off"
+  When resuming from a non-zero position, a "Continuing from last session"
   note and a "Revert to beginning" button appear in the guide bar.
 - The grid can be panned/scrolled and zoomed in view mode the same as in
   edit mode (previously view mode blocked all touch panning — a real bug,
@@ -330,22 +362,19 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
       this way goes into both Project Yarn and Pattern Yarn. This walks
       back the "one combined list, auto-expand" simplification approved
       earlier in favor of the more granular flow originally described.
-- [ ] **Default active yarn** when opening/editing a pattern should be
-      whichever yarn is first in that pattern's Pattern Yarn, not the app's
-      accent color. If a pattern has no Pattern Yarn selected yet: disable
-      Paint (and Bucket, since both need a color — Erase stays enabled),
-      show the tool icon greyed out, and if the user tries to paint anyway,
-      show a **toast notification** ("select a yarn first") — this needs a
-      new toast/transient-notification UI component, since today the app
-      only has blocking `alert()`/`confirm()`.
-- [ ] **iPhone header overflow**: the Yarn Stash/Settings/Refresh/Log out
-      button row pushes past the screen edge. Convert Settings, Refresh,
-      and Log out to icon-only square buttons (simple single-color SVG
-      gear/refresh/logout icons, matching the existing toolbar icon style —
-      not emoji). Keep Yarn Stash as its current text+emoji button.
-- [ ] **Danger Zone should only show for the Developer account**, not
-      Mia's — compare `auth.currentUser.email` against the "dev" entry in
-      `LOGIN_ACCOUNTS` before rendering that section.
+- [x] **Default active yarn**: opening/editing a pattern now sets the
+      active yarn to whichever is first in that pattern's Pattern Yarn,
+      not the app's accent color. No Pattern Yarn selected → Paint/Bucket
+      render greyed out (Erase stays enabled) and clicking them, or trying
+      to paint directly on the grid, shows a toast ("Select a yarn first")
+      instead of doing anything. Added the app's first toast/transient-
+      notification component for this (`showToast()`).
+- [x] **iPhone header overflow**: Settings/Refresh/Log out are now
+      icon-only square buttons (SVG gear/refresh/logout icons); Yarn Stash
+      kept its text+emoji label.
+- [x] **Danger Zone now only shows for the Developer account** — gated by
+      `isDevAccount()`, comparing `auth.currentUser.email` against the
+      "dev" entry in `LOGIN_ACCOUNTS`.
 - [ ] **Grid viewport/zoom rearchitecture**: right now the grid's rendered
       size just grows with zoom and the browser scrolls it — width caps at
       the screen but height keeps growing unbounded. Wanted instead: the
@@ -363,22 +392,16 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
       content that scales/pans inside it, vs. today's "container grows to
       fit content, browser scrollbars appear as needed"), not a small
       tweak — needs real design thought before touching.
-- [ ] **"Start Stitch" → "Resume Stitch"**: the button in the pattern
-      header should read "Resume Stitch" instead of "Start Stitch" once a
-      saved position exists for that pattern (i.e. `pattern.guidePos > 0`,
-      the same condition that currently drives `state.guideResumed`).
-      Keep the existing "Revert to beginning" button, but reword the guide
-      bar's "Resuming where you left off" note to **"Continuing from last
-      session."**
-- [ ] **Yarn Stash card delete** moves from the card itself into the
-      Edit Yarn modal (a Delete button between Cancel and Save), with a
-      confirmation warning before deleting — same pattern as project/
-      pattern delete elsewhere.
-- [ ] **Home screen project cards**: remove the hover-reveal delete icon
-      from the card (rely on the Delete button already inside the project
-      page instead — one way to delete a project, not two). Also slim the
-      card height down — it still reserves vertical space as if for the
-      old color-swatch row that was removed a few passes ago.
+- [x] **"Start Stitch" → "Resume Stitch"** once `pattern.guidePos > 0`;
+      guide bar's resumed-position note reworded to "Continuing from last
+      session."
+- [x] **Yarn Stash card delete** moved from the card into the Edit Yarn
+      modal (a Delete button between Cancel and Save), with the same
+      confirmation warning it always had.
+- [x] **Home screen project cards**: removed the hover-reveal delete icon
+      (rely solely on the Delete button inside the project page) and
+      slimmed the card padding/height now that it's not reserving space
+      for the old color-swatch row.
 - [ ] Yarn Stash reorder option (today it's always alphabetical by name) —
       raised earlier, still not scoped.
 - [ ] Broader "discard unsaved changes?" sweep beyond Pattern Settings —
@@ -477,6 +500,46 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
 - [ ] Commit with a clear message.
 
 ## Changelog
+
+### 2026-09-13 (Pass 2: default active yarn + toast, header icons, dev-only Danger Zone, wording, card cleanup)
+- **Default active yarn**: added `syncActiveColorToPattern()`, called
+  whenever the open pattern changes (opening a tab, creating, duplicating,
+  or auto-selecting the first pattern on landing in a project) — sets
+  `state.activeColor` to the hex of the first entry in that pattern's
+  `yarnIds`, or `null` if it has none. `state.activeColor` can now
+  legitimately be `null`; audited every read of it for null-safety
+  (`.toLowerCase()` calls, the color-btn's inline `background` style, the
+  Pattern Yarn dropdown's "selected" check, the `save-pattern-yarn` re-pick
+  logic).
+- **Paint/Bucket disabled with no yarn selected**: greyed out
+  (`.icon-btn-greyed`, not native `disabled` — needs to stay clickable so
+  it can respond) plus a dashed empty color button (`.color-btn-empty`).
+  Clicking either tool, or attempting to paint/fill directly on the grid,
+  calls the new `showToast('Select a yarn first')` instead. Erase is
+  unaffected (doesn't need a color).
+- **New toast component**: `showToast()` + `#toast-root` — a small pill
+  that fades in at the bottom of the screen and auto-dismisses after
+  ~2.2s. The app's first non-blocking notification; existing
+  `alert()`/`confirm()` usage elsewhere is unchanged.
+- **iPhone header overflow fixed**: Settings/Refresh/Log out are now
+  icon-only square buttons (new `ICONS.refresh`/`ICONS.logout` SVGs,
+  reusing the existing `ICONS.gear`) instead of text+emoji buttons; Yarn
+  Stash keeps its label since it's the most-used of the four.
+- **Danger Zone gated to the Developer account** (`isDevAccount()`) —
+  invisible when signed in as Mia.
+- **Wording**: pattern header's stitch-guide button reads "Resume Stitch"
+  instead of "Start Stitch" once `pattern.guidePos > 0`; the guide bar's
+  resumed-position note now reads "Continuing from last session" (was
+  "Resuming where you left off").
+- **Yarn delete moved into the Edit Yarn modal** (a Delete button between
+  Cancel and Save, same confirmation warning as before) instead of a
+  hover icon on the Yarn Stash card — the card is click-anywhere-to-edit
+  only now, no in-card actions.
+- **Home project cards**: removed the hover-reveal delete icon (delete
+  now only happens from inside the project page, one path instead of two)
+  and slimmed the card's padding/`min-height`, which had been left over
+  from before the color-swatch row was removed from these cards.
+- Not verified live in a browser this session.
 
 ### 2026-09-13 (Pass 1: bucket-fill undo root-cause fix, swatch defensive CSS)
 - **Found and fixed the real bucket-fill undo bug**: `pointermove` called

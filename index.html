@@ -112,14 +112,12 @@
   }
   .project-card{
     background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
-    padding:18px;cursor:pointer;box-shadow:var(--shadow);transition:transform .1s ease;
-    display:flex;flex-direction:column;gap:8px;min-height:120px;position:relative;
+    padding:14px 16px;cursor:pointer;box-shadow:var(--shadow);transition:transform .1s ease;
+    display:flex;flex-direction:column;gap:6px;position:relative;
   }
   .project-card:hover{transform:translateY(-2px);}
-  .project-card h3{font-size:17px;}
+  .project-card h3{font-size:16px;}
   .project-card .meta{color:var(--ink-soft);font-size:12.5px;}
-  .project-card .card-actions{position:absolute;top:10px;right:10px;opacity:0;transition:opacity .15s;}
-  .project-card:hover .card-actions{opacity:1;}
   .yarn-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;}
   .yarn-card{
     background:var(--card);border:1px solid var(--border);border-radius:12px;
@@ -185,6 +183,8 @@
   .icon-btn-inline:hover{color:var(--ink);background:var(--bg-alt);}
   .icon-btn-inline svg{width:14px;height:14px;}
   .color-btn{width:36px;height:36px;flex-shrink:0;border-radius:10px;border:2px solid var(--border);cursor:pointer;padding:0;}
+  .color-btn-empty{background:var(--bg-alt);border-style:dashed;}
+  .icon-btn-greyed{opacity:.35;}
   .dropdown-wrap{position:relative;}
   .dropdown-panel{
     position:absolute;top:calc(100% + 8px);left:0;z-index:40;
@@ -258,6 +258,17 @@
   .modal input[type=text]{width:100%;padding:9px 11px;border-radius:9px;border:1px solid var(--border);background:var(--bg);color:var(--ink);font-size:14px;}
   .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;}
 
+  #toast-root{
+    position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:60;
+    display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;
+  }
+  .toast{
+    background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:999px;
+    font-size:13px;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,.25);
+    opacity:0;transform:translateY(8px);transition:opacity .2s ease, transform .2s ease;
+  }
+  .toast.show{opacity:1;transform:translateY(0);}
+
   .login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;text-align:center;}
   .login-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:32px 28px;max-width:340px;width:100%;}
   .login-card h1{font-size:20px;margin:10px 0 4px;}
@@ -273,6 +284,7 @@
 <body>
 <div id="app"></div>
 <div id="modal-root"></div>
+<div id="toast-root"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -321,6 +333,10 @@
     {id:'mia', label:'Mia', email:'miajade.kha@gmail.com'},
     {id:'dev', label:'Developer', email:'btattersall13@gmail.com'}
   ];
+  function isDevAccount(){
+    var devAccount = LOGIN_ACCOUNTS.filter(function(a){ return a.id==='dev'; })[0];
+    return !!(devAccount && auth.currentUser && auth.currentUser.email === devAccount.email);
+  }
   var LEGACY_LOCAL_KEY = 'miasCrochetApp.v1';
   var CELL_SIZE_MIN = 12, CELL_SIZE_MAX = 44;
   var ASPECT_PRESETS = [
@@ -346,6 +362,21 @@
     }catch(e){ return ''; }
   }
 
+  /* ---------- toast (transient, non-blocking notification) ---------- */
+  function showToast(message){
+    var root = document.getElementById('toast-root');
+    if(!root) return;
+    var el = document.createElement('div');
+    el.className = 'toast';
+    el.textContent = message;
+    root.appendChild(el);
+    requestAnimationFrame(function(){ el.classList.add('show'); });
+    setTimeout(function(){
+      el.classList.remove('show');
+      setTimeout(function(){ if(el.parentNode) el.parentNode.removeChild(el); }, 250);
+    }, 2200);
+  }
+
   /* ---------- icons (inline SVG, monochrome via currentColor) ---------- */
   var ICON_SVG_ATTRS = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
   var ICONS = {
@@ -362,7 +393,9 @@
     trash: '<svg '+ICON_SVG_ATTRS+'><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/></svg>',
     gear: '<svg '+ICON_SVG_ATTRS+'><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
     chevronDown: '<svg '+ICON_SVG_ATTRS+'><path d="m6 9 6 6 6-6"/></svg>',
-    arrowRight: '<svg '+ICON_SVG_ATTRS+'><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>'
+    arrowRight: '<svg '+ICON_SVG_ATTRS+'><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>',
+    refresh: '<svg '+ICON_SVG_ATTRS+'><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>',
+    logout: '<svg '+ICON_SVG_ATTRS+'><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>'
   };
 
   /* ---------- data layer (Firestore) ---------- */
@@ -517,6 +550,17 @@
     });
   }
   function getYarn(id){ return db.yarnStash.find(function(y){ return y.id===id; }); }
+  // Called whenever the pattern being viewed/edited changes, so the active
+  // paint color always starts from that pattern's own yarn, not whatever
+  // was left over from a previously-open pattern (or the app's accent
+  // color). null means "no yarn selected for this pattern yet" — Paint/
+  // Bucket are disabled in that state (see renderToolbar / pointerdown).
+  function syncActiveColorToPattern(pattern){
+    var yarnIds = pattern ? (pattern.yarnIds||[]) : [];
+    if(!yarnIds.length){ state.activeColor = null; return; }
+    var first = getYarn(yarnIds[0]);
+    state.activeColor = first ? first.hex : null;
+  }
 
   function loadYarnStash(){
     return userYarnStashRef().get().then(function(snap){
@@ -627,7 +671,7 @@
     projectId:null,
     patternId:null,
     patternMode:'view',     // 'view' | 'edit'
-    activeColor:'#d97a5f',
+    activeColor:null,      // null = no yarn selected yet for the current pattern
     activeTool:'paint',     // 'paint' | 'bucket' | 'erase' | 'pan'
     guideActive:false,
     guidePos:0,
@@ -780,9 +824,9 @@
     html += '<div class="app-header"><div class="brand"><h1>Crochet Projects</h1></div>';
     html += '<div style="display:flex;gap:8px;">';
     html += '<button class="btn btn-icon" data-action="open-yarnstash" title="Manage your yarn catalog">🧶 Yarn Stash</button>';
-    html += '<button class="btn btn-icon" data-action="open-settings" title="App settings">⚙ Settings</button>';
-    html += '<button class="btn btn-icon" data-action="refresh" title="Pull the latest data from the database">⟳ Refresh</button>';
-    html += '<button class="btn btn-icon" data-action="logout" title="Log out">⎋ Log out</button>';
+    html += '<button class="icon-btn" data-action="open-settings" title="Settings">'+ICONS.gear+'</button>';
+    html += '<button class="icon-btn" data-action="refresh" title="Pull the latest data from the database">'+ICONS.refresh+'</button>';
+    html += '<button class="icon-btn" data-action="logout" title="Log out">'+ICONS.logout+'</button>';
     html += '</div></div>';
     html += '<main>';
 
@@ -793,7 +837,6 @@
       html += '<div class="project-grid">';
       db.projects.slice().sort(function(a,b){ return new Date(b.updatedAt)-new Date(a.updatedAt); }).forEach(function(p){
         html += '<div class="project-card" data-action="open-project" data-id="'+p.id+'">';
-        html += '<div class="card-actions"><button class="btn btn-icon btn-danger btn-sm" data-action="delete-project" data-id="'+p.id+'" title="Delete project">🗑</button></div>';
         html += '<h3>'+escapeHtml(p.name)+'</h3>';
         html += '<div class="meta">'+p.patterns.length+' pattern'+(p.patterns.length===1?'':'s')+' · updated '+fmtDate(p.updatedAt)+'</div>';
         html += '</div>';
@@ -827,7 +870,6 @@
       db.yarnStash.slice().sort(function(a,b){ return a.name.localeCompare(b.name); }).forEach(function(y){
         var meta = yarnMetaLine(y);
         html += '<div class="yarn-card" data-action="edit-yarn" data-id="'+y.id+'" title="Click to edit">';
-        html += '<div class="card-actions"><button class="icon-btn icon-btn-danger" data-action="delete-yarn" data-id="'+y.id+'" title="Delete yarn">'+ICONS.trash+'</button></div>';
         html += '<div style="display:flex;align-items:center;gap:8px;"><span class="palette-swatch" style="background:'+y.hex+';cursor:default;width:22px;height:22px;border-radius:6px;"></span><h3>'+escapeHtml(y.name)+'</h3></div>';
         if(meta) html += '<div class="meta">'+escapeHtml(meta)+'</div>';
         html += '</div>';
@@ -874,11 +916,13 @@
     });
     html += '</div><div class="hint" style="margin-top:8px;">"System" follows your device\'s light/dark setting. This is saved on this device only.</div>';
     html += '</div>';
-    html += '<div class="field" style="max-width:420px;margin-top:28px;">';
-    html += '<label style="color:var(--danger);">Danger Zone</label>';
-    html += '<div class="hint" style="margin-bottom:10px;">Permanently deletes every project, pattern, and yarn for the account you\'re currently signed in as (<strong>'+escapeHtml(accountEmail)+'</strong>). Cannot be undone. Only affects this account — never any other login.</div>';
-    html += '<button class="btn btn-danger btn-sm" data-action="wipe-my-data">Wipe all my data</button>';
-    html += '</div>';
+    if(isDevAccount()){
+      html += '<div class="field" style="max-width:420px;margin-top:28px;">';
+      html += '<label style="color:var(--danger);">Danger Zone</label>';
+      html += '<div class="hint" style="margin-bottom:10px;">Permanently deletes every project, pattern, and yarn for the account you\'re currently signed in as (<strong>'+escapeHtml(accountEmail)+'</strong>). Cannot be undone. Only affects this account — never any other login.</div>';
+      html += '<button class="btn btn-danger btn-sm" data-action="wipe-my-data">Wipe all my data</button>';
+      html += '</div>';
+    }
     return html;
   }
 
@@ -924,8 +968,13 @@
     var html = '<div class="modal">';
     html += '<h3>'+(yarn?'Edit Yarn':'Add Yarn')+'</h3>';
     html += yarnFormFieldsHtml(yarn);
-    html += '<div class="modal-actions"><button class="btn" data-action="modal-cancel">Cancel</button>';
-    html += '<button class="btn btn-primary" data-action="modal-save-yarn" data-id="'+(yarn?yarn.id:'')+'">'+(yarn?'Save':'Add')+'</button></div>';
+    html += '<div class="modal-actions">';
+    html += '<button class="btn" data-action="modal-cancel">Cancel</button>';
+    if(yarn){
+      html += '<button class="btn btn-danger" data-action="delete-yarn" data-id="'+yarn.id+'">Delete</button>';
+    }
+    html += '<button class="btn btn-primary" data-action="modal-save-yarn" data-id="'+(yarn?yarn.id:'')+'">'+(yarn?'Save':'Add')+'</button>';
+    html += '</div>';
     html += '</div>';
     openModal(html);
     setTimeout(function(){ var el=document.getElementById('yarn-name'); if(el) el.focus(); },0);
@@ -1040,6 +1089,7 @@
     if(!pattern && project.patterns.length){
       pattern = project.patterns[0];
       state.patternId = pattern.id;
+      syncActiveColorToPattern(pattern);
     }
     if(!pattern){
       html += '<div class="empty-state"><div class="big">📐</div><h2>No patterns yet</h2><p>Add a pattern to start charting stitches for this project.</p>';
@@ -1058,7 +1108,9 @@
     html += '<h3>'+escapeHtml(pattern.name)+' <button class="icon-btn-inline" data-action="rename-pattern" data-id="'+pattern.id+'" title="Rename">'+ICONS.pencil+'</button> <span class="hint">('+pattern.rows+' × '+pattern.cols+')</span></h3>';
     html += '<div class="actions">';
     if(!editing && !state.guideActive){
-      html += '<button class="btn btn-sm btn-sage" data-action="guide-toggle" title="Start Stitch Guide">'+ICONS.arrowRight+' Start Stitch</button>';
+      var hasStitchProgress = (pattern.guidePos||0) > 0;
+      var stitchLabel = hasStitchProgress ? 'Resume Stitch' : 'Start Stitch';
+      html += '<button class="btn btn-sm btn-sage" data-action="guide-toggle" title="'+stitchLabel+' Guide">'+ICONS.arrowRight+' '+stitchLabel+'</button>';
     }
     html += '<button class="icon-btn" data-action="duplicate-pattern" data-id="'+pattern.id+'" title="Duplicate">'+ICONS.copy+'</button>';
     html += '<button class="icon-btn icon-btn-danger" data-action="delete-pattern" data-id="'+pattern.id+'" title="Delete">'+ICONS.trash+'</button>';
@@ -1092,7 +1144,7 @@
     state.guidePos = pos;
     var lineIdx = order[pos];
     if(state.guideResumed){
-      html += '<span class="hint">Resuming where you left off</span>';
+      html += '<span class="hint">Continuing from last session</span>';
       html += '<button class="btn btn-sm btn-ghost" data-action="guide-revert">Revert to beginning</button>';
     }
     html += '<button class="btn btn-icon btn-sm" data-action="guide-prev" '+(pos<=0?'disabled':'')+'>‹ Prev</button>';
@@ -1183,8 +1235,12 @@
 
     html += '<div class="toolbar-group">';
     var tools = [['paint',ICONS.paint,'Paint'],['bucket',ICONS.bucket,'Fill'],['erase',ICONS.erase,'Erase']];
+    var noYarnSelected = !state.activeColor;
     tools.forEach(function(tt){
-      html += '<button class="icon-btn'+(state.activeTool===tt[0]?' active':'')+'" data-action="set-tool" data-tool="'+tt[0]+'" title="'+tt[2]+'">'+tt[1]+'</button>';
+      var needsColor = (tt[0]==='paint' || tt[0]==='bucket');
+      var greyed = needsColor && noYarnSelected;
+      var title = greyed ? tt[2]+' (select a yarn first)' : tt[2];
+      html += '<button class="icon-btn'+(state.activeTool===tt[0]?' active':'')+(greyed?' icon-btn-greyed':'')+'" data-action="set-tool" data-tool="'+tt[0]+'" title="'+title+'">'+tt[1]+'</button>';
     });
     html += '</div><div class="toolbar-sep"></div>';
 
@@ -1195,7 +1251,7 @@
     html += '</div><div class="toolbar-sep"></div>';
 
     html += '<div class="toolbar-group dropdown-wrap">';
-    html += '<button class="color-btn" data-action="toggle-color-picker" style="background:'+state.activeColor+';" title="Active yarn"></button>';
+    html += '<button class="color-btn'+(state.activeColor?'':' color-btn-empty')+'" data-action="toggle-color-picker" style="'+(state.activeColor?'background:'+state.activeColor+';':'')+'" title="Active yarn"></button>';
     if(state.colorPickerOpen){
       var patternYarn = db.yarnStash.filter(function(y){ return (pattern.yarnIds||[]).indexOf(y.id)!==-1; });
       html += '<div class="dropdown-panel">';
@@ -1205,7 +1261,7 @@
       } else {
         html += '<div class="palette-grid">';
         patternYarn.forEach(function(y){
-          var sel = state.activeColor.toLowerCase() === y.hex.toLowerCase();
+          var sel = !!state.activeColor && state.activeColor.toLowerCase() === y.hex.toLowerCase();
           html += '<div class="palette-swatch'+(sel?' selected':'')+'" style="background:'+y.hex+'" data-action="select-palette-color" data-hex="'+y.hex+'" title="'+escapeHtml(y.name)+'"></div>';
         });
         html += '</div>';
@@ -1368,6 +1424,7 @@
     state.patternId = pt.id;
     state.patternMode = 'edit';
     resetUndoHistory();
+    syncActiveColorToPattern(pt);
     render();
   }
 
@@ -1536,6 +1593,7 @@
               }
             });
           });
+          closeModal();
           render();
         }
         break;
@@ -1637,6 +1695,7 @@
         state.patternMode = 'view';
         state.guideActive = false;
         resetUndoHistory();
+        syncActiveColorToPattern(getPattern(getProject(state.projectId), state.patternId));
         render();
         break;
       }
@@ -1661,6 +1720,7 @@
         touch(pr2); persist(pr2, copy);
         state.patternId = copy.id;
         resetUndoHistory();
+        syncActiveColorToPattern(copy);
         render();
         break;
       }
@@ -1686,7 +1746,16 @@
         render();
         break;
       }
-      case 'set-tool': state.activeTool = t.getAttribute('data-tool'); render(); break;
+      case 'set-tool': {
+        var newTool = t.getAttribute('data-tool');
+        if((newTool==='paint' || newTool==='bucket') && !state.activeColor){
+          showToast('Select a yarn first');
+          break;
+        }
+        state.activeTool = newTool;
+        render();
+        break;
+      }
       case 'toggle-color-picker': {
         if(state.patternSettingsOpen){
           var prTC = getProject(state.projectId);
@@ -1764,8 +1833,10 @@
           saveProjectDoc(spyProj);
         }
         touch(spyProj); persist(spyProj, spyPat);
-        var stillHasActive = db.yarnStash.some(function(y){ return newPatYarnIds.indexOf(y.id)!==-1 && y.hex.toLowerCase()===state.activeColor.toLowerCase(); });
-        if(!stillHasActive && newPatYarnIds.length){
+        var stillHasActive = !!state.activeColor && db.yarnStash.some(function(y){ return newPatYarnIds.indexOf(y.id)!==-1 && y.hex.toLowerCase()===state.activeColor.toLowerCase(); });
+        if(!newPatYarnIds.length){
+          state.activeColor = null;
+        } else if(!stillHasActive){
           var firstYarn = getYarn(newPatYarnIds[0]);
           if(firstYarn) state.activeColor = firstYarn.hex;
         }
@@ -1971,6 +2042,10 @@
     if(state.patternMode !== 'edit') return;
     if(state.activeTool === 'pan') return;
     if(state.pinch) return;
+    if((state.activeTool==='paint' || state.activeTool==='bucket') && !state.activeColor){
+      showToast('Select a yarn first');
+      return;
+    }
     var project = getProject(state.projectId);
     var pattern = getPattern(project, state.patternId);
     if(!pattern) return;
