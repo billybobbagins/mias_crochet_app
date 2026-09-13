@@ -150,8 +150,18 @@
     color:var(--ink-soft);border:1px solid transparent;border-bottom:none;background:transparent;
   }
   .tab.active{color:var(--accent);background:var(--card);border-color:var(--border);position:relative;top:2px;}
-  .tab-add{color:var(--ink-soft);font-size:18px;padding:9px 14px;}
-  .tab-add:hover{color:var(--accent);}
+  .pattern-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;}
+  .pattern-card{
+    background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+    padding:12px;cursor:pointer;box-shadow:var(--shadow);transition:transform .1s ease;
+    display:flex;flex-direction:column;gap:6px;
+  }
+  .pattern-card:hover{transform:translateY(-2px);}
+  .pattern-card h3{font-size:15px;}
+  .pattern-card .meta{color:var(--ink-soft);font-size:12px;}
+  .pattern-card-thumb{width:100%;aspect-ratio:1;background:var(--cell-blank-bg);border:1px solid var(--grid-line);border-radius:8px;overflow:hidden;}
+  .pattern-card-yarns{display:flex;flex-wrap:wrap;gap:4px;}
+  .swatch-dot-sm{width:12px;height:12px;border-radius:50%;border:1px solid rgba(0,0,0,.15);flex-shrink:0;}
 
   /* Pattern view */
   .pattern-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px;}
@@ -863,6 +873,7 @@
     if(state.view === 'home') appEl.innerHTML = renderHome();
     else if(state.view === 'yarnstash') appEl.innerHTML = renderYarnStashView();
     else if(state.view === 'settings') appEl.innerHTML = renderSettingsView();
+    else if(state.view === 'pattern') appEl.innerHTML = renderPatternPageView();
     else appEl.innerHTML = renderProjectView();
     if(scrollLeft!==null){
       var newScrollEl = document.querySelector('.grid-scroll');
@@ -1264,27 +1275,65 @@
     html += '<button class="icon-btn icon-btn-danger" data-action="delete-project" data-id="'+project.id+'" title="Delete Project">'+ICONS.trash+'</button>';
     html += '</div></div>';
 
-    html += '<div class="tabs">';
-    project.patterns.forEach(function(pt){
-      var active = pt.id === state.patternId;
-      html += '<div class="tab'+(active?' active':'')+'" data-action="open-pattern" data-id="'+pt.id+'">'+escapeHtml(pt.name)+'</div>';
-    });
-    html += '<div class="tab tab-add" data-action="new-pattern" title="Add pattern">+</div>';
-    html += '</div>';
-
-    var pattern = getPattern(project, state.patternId);
-    if(!pattern && project.patterns.length){
-      pattern = project.patterns[0];
-      state.patternId = pattern.id;
-      syncActiveColorToPattern(pattern);
-    }
-    if(!pattern){
+    if(!project.patterns.length){
       html += '<div class="empty-state"><div class="big">📐</div><h2>No patterns yet</h2><p>Add a pattern to start charting stitches for this project.</p>';
       html += '<div style="margin-top:16px;"><button class="btn btn-primary" data-action="new-pattern">+ New Pattern</button></div></div>';
     } else {
-      html += renderPattern(project, pattern);
+      html += '<div class="pattern-card-grid">';
+      project.patterns.forEach(function(pt){ html += renderPatternCard(project, pt); });
+      html += '<div class="new-card" data-action="new-pattern"><div class="plus">+</div><div>New Pattern</div></div>';
+      html += '</div>';
     }
 
+    html += '</main>';
+    return html;
+  }
+
+  function patternThumbnailSvg(pattern){
+    var maxDim = 24; // caps thumbnail detail/cost regardless of actual pattern size
+    var rows = pattern.rows, cols = pattern.cols;
+    var stepR = Math.max(1, Math.ceil(rows/maxDim));
+    var stepC = Math.max(1, Math.ceil(cols/maxDim));
+    var outRows = Math.ceil(rows/stepR), outCols = Math.ceil(cols/stepC);
+    var svg = '<svg viewBox="0 0 '+outCols+' '+outRows+'" preserveAspectRatio="none" style="width:100%;height:100%;display:block;">';
+    for(var r=0;r<outRows;r++){
+      for(var c=0;c<outCols;c++){
+        var srcR = Math.min(rows-1, r*stepR), srcC = Math.min(cols-1, c*stepC);
+        var hex = pattern.cells[srcR][srcC];
+        if(hex) svg += '<rect x="'+c+'" y="'+r+'" width="1" height="1" fill="'+hex+'"/>';
+      }
+    }
+    svg += '</svg>';
+    return svg;
+  }
+
+  function renderPatternCard(project, pattern){
+    var yarns = (pattern.yarnIds||[]).map(getYarn).filter(Boolean);
+    var html = '<div class="pattern-card" data-action="open-pattern" data-id="'+pattern.id+'" title="Open">';
+    html += '<div class="pattern-card-thumb">'+patternThumbnailSvg(pattern)+'</div>';
+    html += '<h3>'+escapeHtml(pattern.name)+'</h3>';
+    html += '<div class="meta">'+pattern.rows+' × '+pattern.cols+'</div>';
+    if(yarns.length){
+      html += '<div class="pattern-card-yarns">';
+      yarns.slice(0,10).forEach(function(y){
+        html += '<span class="swatch-dot-sm" style="background:'+y.hex+';" title="'+escapeHtml(y.name)+'"></span>';
+      });
+      html += '</div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function renderPatternPageView(){
+    var project = getProject(state.projectId);
+    if(!project){ state.view='home'; return renderHome(); }
+    var pattern = getPattern(project, state.patternId);
+    if(!pattern){ state.view='project'; return renderProjectView(); }
+    var html = '';
+    html += '<div class="app-header"><div class="brand"><h1>Crochet Projects</h1></div>';
+    html += '<button class="btn" data-action="open-project" data-id="'+project.id+'">← '+escapeHtml(project.name)+'</button></div>';
+    html += '<main>';
+    html += renderPattern(project, pattern);
     html += '</main>';
     return html;
   }
@@ -1605,6 +1654,7 @@
     persist(project, pt);
     state.patternId = pt.id;
     state.patternMode = 'edit';
+    state.view = 'pattern';
     resetUndoHistory();
     syncActiveColorToPattern(pt);
     render();
@@ -1880,6 +1930,7 @@
         state.patternId = t.getAttribute('data-id');
         state.patternMode = 'view';
         state.guideActive = false;
+        state.view = 'pattern';
         resetUndoHistory();
         syncActiveColorToPattern(getPattern(getProject(state.projectId), state.patternId));
         render();
@@ -1905,6 +1956,7 @@
         pr2.patterns.push(copy);
         touch(pr2); persist(pr2, copy);
         state.patternId = copy.id;
+        state.view = 'pattern';
         resetUndoHistory();
         syncActiveColorToPattern(copy);
         render();
@@ -1917,7 +1969,8 @@
         if(confirm('Delete pattern "'+pt4.name+'"? This cannot be undone.')){
           pr3.patterns = pr3.patterns.filter(function(x){ return x.id!==pt4.id; });
           touch(pr3); persist(pr3); deletePatternRemote(pr3.id, pt4.id);
-          if(state.patternId===pt4.id) state.patternId = pr3.patterns.length ? pr3.patterns[0].id : null;
+          state.patternId = null;
+          state.view = 'project';
           render();
         }
         break;

@@ -205,8 +205,26 @@ picker/organization layer, not a grid-data change.
   single-user app.)
 
 ### Projects
-- Rename / delete project.
-- A project holds one or more patterns, shown as tabs.
+- Rename / delete project (both live in the project page's header, next to
+  the Project Yarn button — see Yarn Stash / Project Yarn / Pattern Yarn
+  above).
+- A project holds one or more patterns, shown as a **card grid** (was
+  tabs) — each card shows the pattern's name, grid size, small dots for
+  its Pattern Yarn colors, and a scaled-down thumbnail render of the
+  actual grid (`patternThumbnailSvg()`, capped at 24×24 sampled cells
+  regardless of the pattern's real size, so a huge pattern's thumbnail
+  stays cheap to render). A dashed "+ New Pattern" tile sits alongside the
+  cards, matching the Home screen's "+ New Project" tile. Switched away
+  from tabs because the active tab gave no visible "you are here"
+  indication until you interacted with something on the page — a plain
+  named tab looks identical whether selected or not until its accent
+  styling kicks in on hover/interaction, which isn't obvious on load.
+- Clicking a card opens a **dedicated pattern page** (`state.view =
+  'pattern'`) — everything that used to render below the tabs (pattern
+  header, toolbar/guide bar, grid) now lives on its own page, with a
+  "← *(project name)*" back button (`renderPatternPageView()`) in place of
+  the project view's "← All Projects", returning to that project's card
+  grid.
 
 ### Patterns
 - Create / rename / duplicate / delete patterns within a project. Rename is
@@ -543,18 +561,12 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
       "compute now, commit at pointerup" shape with the Line tool
       (generalized `clearShapePreview()`/`markShapePreview()`, was
       Line-specific `clearLinePreview()`).
-- [ ] **Replace pattern tabs with pattern cards + a dedicated per-pattern
-      page**: opening a project currently shows tabs (today's active tab
-      is genuinely hard to see until you interact with something — no
-      visible "you are here" state on load). Instead: opening a project
-      shows a card grid of its patterns (title, grid size, yarn-color
-      dots, ideally a small rendered thumbnail); clicking a card opens a
-      dedicated pattern page (everything currently below the tabs) with
-      its own "← *(project name)*" back button (styled like today's
-      "← All Projects"), and the header row also picks up the Rename
-      pencil, grid-size text, Project Yarn button, and Delete Project
-      button that make sense there once tabs are gone. Not yet built —
-      the bigger of the two remaining new-feature asks this round.
+- [x] **Replaced pattern tabs with pattern cards + a dedicated per-pattern
+      page** — see the Projects/Patterns sections above and the Pass 7c
+      changelog entry for the full shape. The project page's header
+      (Rename pencil, Project Yarn button, Delete Project) didn't need to
+      move — it already lived on what's now the card-grid page, not on
+      the old tab-strip.
 
 ### Shipped
 
@@ -624,6 +636,46 @@ top, grouped by kind, and a **Shipped** log at the bottom for history.
 - [ ] Commit with a clear message.
 
 ## Changelog
+
+### 2026-09-13 (Pass 7c: pattern cards replace tabs, dedicated pattern page)
+- **New navigation level**: `state.view` gains a `'pattern'` value,
+  rendered by a new `renderPatternPageView()` — a project's page
+  (`renderProjectView()`) now only ever shows that project's header
+  (name/rename, Project Yarn, Delete) plus a card grid of its patterns;
+  everything that used to render directly below the tab strip (pattern
+  header, toolbar/guide bar, grid — the existing `renderPattern()`, kept
+  as-is and just called from one place now instead of inline) moved to
+  its own page reached by clicking a card.
+- **New pattern cards** (`renderPatternCard()`): name, `rows × cols`, small
+  dots for the pattern's yarn colors, and a live SVG thumbnail of the
+  actual grid (`patternThumbnailSvg()`) — downsampled to at most 24×24
+  sampled cells regardless of the real pattern size (a 100×100 pattern's
+  thumbnail costs the same to render as a 20×20 one), using
+  `preserveAspectRatio="none"` to fill a fixed square thumbnail box
+  regardless of the pattern's actual row/col ratio. A dashed "+ New
+  Pattern" tile sits alongside the cards, mirroring the Home screen's
+  "+ New Project" tile — same empty-state-only-when-zero-patterns
+  behavior as Home has for projects.
+- **New pattern-page header**: "← *(project name)*" (`renderPatternPageView`
+  reuses the existing `open-project` action for its back button, which
+  already resets to that project's card grid — no new action needed).
+  `open-pattern`/`newPattern()`/`duplicate-pattern` now all set
+  `state.view='pattern'` when they navigate into a pattern; `delete-pattern`
+  sets `state.view='project'` and clears `state.patternId` instead of
+  auto-selecting another pattern to fall into, since deleting can now only
+  ever happen from that pattern's own page (there's nowhere else left to
+  land once it's gone).
+- Root cause this replaces (from the original report): the old tab strip
+  gave no visible "you are here" indication until something was clicked or
+  the grid was interacted with — a named tab looks the same selected or
+  not until hover/interaction styling kicks in, easy to miss on first
+  load.
+- Removed the pattern-tabs-only `.tab-add` CSS (dead now); `.tabs`/`.tab`/
+  `.tab.active` are kept since the Settings screen's General/Yarn Presets
+  tab bar still uses them.
+- Not verified live in a browser this session, including the thumbnail
+  rendering specifically — no way to visually confirm the SVG sampling
+  looks right without seeing it rendered.
 
 ### 2026-09-13 (Pass 7b: Circle tool)
 - **New Circle tool**, alongside Paint/Bucket/Line/Erase: press to set the
